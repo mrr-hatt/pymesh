@@ -6,12 +6,14 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
 from pymesh.controller.api import router as api_router, db_manager
+from pymesh.controller.web import router as web_router, print_startup_banner
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize DB tables on startup
     await db_manager.init_db()
+    print_startup_banner()
     yield
 
 
@@ -23,6 +25,7 @@ app = FastAPI(
 )
 
 app.include_router(api_router)
+app.include_router(web_router)
 
 
 @app.get("/")

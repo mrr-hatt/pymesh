@@ -2,7 +2,9 @@
 
 PyMesh is a zero-trust, private encrypted mesh networking platform that connects PCs, VPS instances, servers, containers, and entire remote subnets across NATs and firewalls.
 
-PyMesh pairs WireGuard for kernel data-plane packet encryption with Python for control-plane coordination, dynamic NAT discovery, zero-decryption UDP relaying, Magic DNS, local port forwarding, and access control (ACL) enforcement.
+Created by **MrHat** ([GitHub Profile](https://github.com/mrr-hatt/)). Official repository: [https://github.com/mrr-hatt/pymesh](https://github.com/mrr-hatt/pymesh).
+
+PyMesh pairs WireGuard for kernel data-plane packet encryption with Python for control-plane coordination, dynamic NAT discovery, zero-decryption UDP relaying, Magic DNS, local port forwarding, access control (ACL) enforcement, and an interactive Cisco Packet Tracer-style Web Admin Studio.
 
 ---
 
@@ -17,17 +19,18 @@ PyMesh pairs WireGuard for kernel data-plane packet encryption with Python for c
    - [Step 3: Register Nodes](#step-3-register-nodes)
    - [Step 4: Activate Mesh Interfaces](#step-4-activate-mesh-interfaces)
    - [Step 5: Run Network Diagnostics](#step-5-run-network-diagnostics)
-5. [Advanced Features](#advanced-features)
+5. [Cisco Packet Tracer Web Admin Studio](#cisco-packet-tracer-web-admin-studio)
+6. [Advanced Features](#advanced-features)
    - [Local Port Forwarding & Proxy](#local-port-forwarding--proxy)
    - [Subnet Routers & Exit Nodes](#subnet-routers--exit-nodes)
    - [Magic DNS (*.mesh)](#magic-dns-mesh)
    - [Access Control Lists (ACLs)](#access-control-lists-acls)
    - [NAT Traversal & UDP Relaying](#nat-traversal--udp-relaying)
-6. [System Boot Reconnection & Persistence](#system-boot-reconnection--persistence)
-7. [CLI Command Reference](#cli-command-reference)
-8. [Controller REST API Reference](#controller-rest-api-reference)
-9. [Testing & Verification](#testing--verification)
-10. [License](#license)
+7. [System Boot Reconnection & Persistence](#system-boot-reconnection--persistence)
+8. [CLI Command Reference](#cli-command-reference)
+9. [Controller REST API Reference](#controller-rest-api-reference)
+10. [Testing & Verification](#testing--verification)
+11. [Developer & License](#developer--license)
 
 ---
 
@@ -41,6 +44,7 @@ PyMesh pairs WireGuard for kernel data-plane packet encryption with Python for c
                          | SQLite / PostgreSQL  |
                          | Node Registry & IP   |
                          | ACL & Subnet Routes  |
+                         | Web Admin Studio     |
                          +----------+-----------+
                                     |
                          HTTPS / JSON Heartbeat
@@ -62,13 +66,15 @@ PyMesh pairs WireGuard for kernel data-plane packet encryption with Python for c
 
 PyMesh is structured into two distinct operational planes:
 
-- **Control Plane**: Developed in Python using FastAPI, SQLAlchemy 2.0, and Pydantic v2. Responsible for node identity registration, CGNAT IP allocation (`100.64.0.0/10` IPv4 & `fd00:7079:6d65::/48` IPv6), heartbeat tracking, ACL evaluation, and peer discovery.
+- **Control Plane**: Developed in Python using FastAPI, SQLAlchemy 2.0, and Pydantic v2. Responsible for node identity registration, CGNAT IP allocation (`100.64.0.0/10` IPv4 & `fd00:7079:6d65::/48` IPv6), heartbeat tracking, ACL evaluation, peer discovery, and Web Admin dashboard serving.
 - **Data Plane**: Uses native kernel WireGuard (`pyroute2`) for direct peer-to-peer packet encryption and transport. PyMesh configures WireGuard parameters without modifying underlying cryptographic transport protocols.
 
 ---
 
 ## Key Capabilities
 
+- **Cisco Packet Tracer Web Studio**: Interactive network canvas featuring SVG device nodes, live link indicators, node reprogramming, port forwarding manager, and visual ACL policy matrix.
+- **Dynamic Startup Passkey**: Generates a new secure admin passkey on every controller restart, outputting the key directly to the server terminal output.
 - **Cryptographic Node Identity**: Every node generates an Ed25519 identity keypair and an X25519 WireGuard keypair upon initialization. Private keys remain strictly on the local host. A deterministic 64-character Node ID is derived from the public key.
 - **Automatic Subnet Allocation**: The controller dynamically assigns non-conflicting IP addresses within CGNAT (`100.64.0.0/10`) and IPv6 ULA blocks.
 - **NAT Traversal & UDP Hole Punching**: Integrated STUN client (RFC 5389) discovers public reflexive endpoints and initiates simultaneous UDP hole punching bursts for direct P2P reachability.
@@ -90,7 +96,7 @@ PyMesh is structured into two distinct operational planes:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourorg/pymesh.git
+git clone https://github.com/mrr-hatt/pymesh.git
 cd pymesh
 
 # Create virtual environment
@@ -107,26 +113,26 @@ pip install -e .[dev]
 
 ### Step 1: Start the Controller Server
 
-The controller manages node registration and peer coordination. Run it on a host reachable by all nodes.
+The controller manages node registration, peer coordination, and the Web Admin Studio:
 
 ```bash
 python -m controller.app
 ```
 
-By default, the server binds to `http://0.0.0.0:8000`.
+Upon startup, the controller displays the dynamic admin passkey in the console output:
 
-To create an authentication join token (optional):
+```text
+====================================================================
+ [PyMesh Web Admin] Cisco Packet Tracer Dashboard Ready
+ [PyMesh Web Admin] Dashboard URL: http://0.0.0.0:8000/net/login
+ [PyMesh Web Admin] Passkey:       aB3xK9mP2qR5...
+====================================================================
+```
+
+To create an authentication join token for node registration (optional):
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/auth/join?description=DeployToken"
-```
-
-Output:
-```json
-{
-  "token": "YOUR_AUTH_TOKEN_HERE",
-  "auth_url": "/join?token=YOUR_AUTH_TOKEN_HERE"
-}
 ```
 
 ---
@@ -139,8 +145,6 @@ If some nodes are behind restrictive NATs, launch a relay server on a public hos
 python -m relay.app 51830
 ```
 
-This starts an encrypted UDP relay on port 51830.
-
 ---
 
 ### Step 3: Register Nodes
@@ -149,29 +153,12 @@ On each host that will join the mesh network, execute `pymesh join`:
 
 #### On Node 1 (`client-pc`):
 ```bash
-pymesh join http://controller.example.com:8000 --hostname client-pc
-```
-
-Output:
-```text
-Joining PyMesh controller at http://controller.example.com:8000...
-Successfully joined PyMesh network!
-Node ID:   8d1c5e1234567890abcdef12345678908d1c5e1234567890abcdef1234567890
-Mesh IPv4: 100.64.0.2
-Mesh IPv6: fd00:7079:6d65::2
+pymesh join http://45.90.99.106:8000 --hostname client-pc
 ```
 
 #### On Node 2 (`vps-de`):
 ```bash
-pymesh join http://controller.example.com:8000 --hostname vps-de
-```
-
-Output:
-```text
-Successfully joined PyMesh network!
-Node ID:   9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d
-Mesh IPv4: 100.64.0.3
-Mesh IPv6: fd00:7079:6d65::3
+pymesh join http://45.90.99.106:8000 --hostname vps-de
 ```
 
 ---
@@ -200,48 +187,17 @@ Execute `pymesh netcheck` to verify STUN discovery, NAT type, and peer reachabil
 pymesh netcheck
 ```
 
-Output:
-```text
-PyMesh Network Diagnostics
+---
 
-IPv4                OK
-IPv6                OK
-UDP                 OK
-NAT                 Full Cone NAT
-Direct P2P          Possible
-STUN                OK
-Relay               Available
+## Cisco Packet Tracer Web Admin Studio
 
-Peers
--------------------------------------------------------------
-Peer Hostname        Mesh IP          Connection    Latency
--------------------------------------------------------------
-vps-de               100.64.0.3       DIRECT        14 ms
-database             100.64.0.4       DIRECT        8 ms
-friend-server        100.64.0.5       RELAY         42 ms
-```
+Open **`http://<controller>:8000/net/login`** in your browser to access the web console.
 
-To render the visual network topology tree:
-
-```bash
-pymesh topology
-```
-
-Output:
-```text
-+----------------------------- Network Topology Map -----------------------------+
-| PyMesh Controller (http://controller.example.com:8000)                        |
-| `-- Encrypted Private Mesh Network (100.64.0.0/10)                             |
-|     |-- client-pc (100.64.0.2) - ONLINE                                       |
-|     |   |-- Endpoint: 41.200.12.5:51820                                       |
-|     |   `-- Groups: developers                                                |
-|     |-- vps-de (100.64.0.3) - ONLINE                                          |
-|     |   |-- Endpoint: 51.15.80.20:51820                                       |
-|     |   `-- Groups: servers                                                   |
-|     `-- database (100.64.0.4) - ONLINE                                       |
-|         `-- Endpoint: 185.220.101.4:51820                                     |
-+-------------------------------------------------------------------------------+
-```
+1. **Authentication**: Enter the startup passkey printed in the controller terminal output.
+2. **Interactive Topology Canvas**: View all connected mesh nodes, IP allocations, active WireGuard links, and node states.
+3. **Node Reprogramming**: Select any node on the canvas to inspect real-time metrics or rename hostnames.
+4. **Port Forwarding Manager**: Add port forwarding rules (`localhost:port -> node:port`) visually from the dashboard.
+5. **ACL Policy Matrix**: Define allow/deny rules across developer groups, server tags, or specific node IDs.
 
 ---
 
@@ -259,8 +215,6 @@ pymesh forward vps-de 8000
 pymesh forward database 8080:3000
 ```
 
-Opening `http://localhost:8000` in your local browser transparently proxies traffic over the encrypted mesh tunnel.
-
 ### Subnet Routers & Exit Nodes
 
 Expose an internal private network (e.g. `10.10.0.0/24`) through a gateway node (`vps-de`):
@@ -268,8 +222,6 @@ Expose an internal private network (e.g. `10.10.0.0/24`) through a gateway node 
 ```bash
 pymesh route add 10.10.0.0/24 --via vps-de
 ```
-
-Traffic directed to `10.10.0.0/24` across any node will automatically route through `vps-de`.
 
 ### Magic DNS (*.mesh)
 
@@ -297,44 +249,20 @@ Define security group policies on the controller to restrict inter-node communic
     "destination": "group:servers",
     "ports": [22, 443],
     "action": "allow"
-  },
-  {
-    "source": "group:developers",
-    "destination": "node:database",
-    "ports": [5432],
-    "action": "allow"
   }
 ]
 ```
-
-### NAT Traversal & UDP Relaying
-
-1. **Reflexive Address Discovery**: The STUN client queries public STUN endpoints to resolve external IP and UDP port mappings.
-2. **UDP Hole Punching**: Simultaneous probe bursts are transmitted to open stateful NAT mappings.
-3. **Encrypted Relay Fallback**: If hole punching fails, traffic is framed using `PYRELAY` headers and routed through the relay server without decrypting WireGuard payloads.
 
 ---
 
 ## System Boot Reconnection & Persistence
 
-Node configurations (`identity.json`) are automatically stored locally upon joining a network. Upon system reboot or service restart, the PyMesh daemon automatically reconnects to the network using its stored credentials.
-
 To enable PyMesh to start automatically on system boot via systemd:
 
 ```bash
-# Copy systemd unit configuration
 sudo cp pymesh.service /etc/systemd/system/pymesh.service
-
-# Reload systemd daemon
 sudo systemctl daemon-reload
-
-# Enable and start PyMesh daemon on boot
 sudo systemctl enable --now pymesh
-```
-
-To verify background service status:
-```bash
-sudo systemctl status pymesh
 ```
 
 ---
@@ -364,6 +292,8 @@ sudo systemctl status pymesh
 
 | Endpoint | Method | Request Payload | Description |
 | :--- | :--- | :--- | :--- |
+| `/net/login` | `GET / POST` | Form: `passkey` | Web Admin passkey authentication page |
+| `/net/dashboard` | `GET` | Session Cookie | Cisco Packet Tracer interactive Web Admin dashboard |
 | `/api/v1/auth/join` | `POST` | Query: `description` | Generates a new node join token |
 | `/api/v1/nodes/register` | `POST` | `NodeRegistrationRequest` | Registers a node and allocates CGNAT IP |
 | `/api/v1/nodes` | `GET` | None | Lists all registered mesh nodes |
@@ -383,25 +313,10 @@ Run the automated test suite using `pytest`:
 PYTHONPATH=. .venv/bin/pytest -v tests/
 ```
 
-Expected output:
-
-```text
-============================= test session starts ==============================
-collected 13 items
-
-tests/test_acl.py ..                                                     [ 15%]
-tests/test_allocator.py .                                                [ 23%]
-tests/test_cli.py ...                                                    [ 46%]
-tests/test_controller.py ..                                              [ 61%]
-tests/test_identity.py ...                                               [ 84%]
-tests/test_relay.py .                                                    [ 92%]
-tests/test_wireguard_manager.py .                                        [100%]
-
-======================== 13 passed in 4.97s =========================
-```
-
 ---
 
-## License
+## Developer & License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+- **Developer**: **MrHat** ([GitHub Profile](https://github.com/mrr-hatt/))
+- **Repository**: [https://github.com/mrr-hatt/pymesh](https://github.com/mrr-hatt/pymesh)
+- **License**: MIT License. See [LICENSE](LICENSE) for details.
