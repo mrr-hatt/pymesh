@@ -3,7 +3,7 @@ Mesh IP address allocation for IPv4 (100.64.0.0/10) and IPv6 (fd00:mesh::/48).
 """
 
 import ipaddress
-from typing import Set, Tuple
+from typing import Set, Tuple, Optional
 
 
 class IPAllocator:
@@ -38,3 +38,14 @@ class IPAllocator:
         next_v6 = str(v6_host)
 
         return next_v4, next_v6
+
+    @staticmethod
+    def validate_cidr(ipv4_cidr: str, ipv6_cidr: Optional[str] = None) -> bool:
+        """Validates IPv4 and IPv6 CIDR subnet notation."""
+        try:
+            ipaddress.IPv4Network(ipv4_cidr, strict=False)
+            if ipv6_cidr:
+                ipaddress.IPv6Network(ipv6_cidr, strict=False)
+            return True
+        except Exception:
+            return False

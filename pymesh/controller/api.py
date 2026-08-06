@@ -231,3 +231,42 @@ async def delete_route(route_id: str, db: AsyncSession = Depends(get_db)):
     await db.execute(stmt)
     await db.commit()
     return {"status": "deleted", "id": route_id}
+
+
+@router.put("/network/subnet")
+async def update_network_subnet(
+    ipv4_prefix: str,
+    ipv6_prefix: Optional[str] = "fd00:7079:6d65::/48",
+    db: AsyncSession = Depends(get_db),
+):
+    from pymesh.controller.allocator import IPAllocator
+    from pymesh.storage.models import Network
+
+    if not IPAllocator.validate_cidr(ipv4_prefix, ipv6_prefix):
+        raise HTTPException(status_code=400, detail="Invalid IPv4 or IPv6 CIDR prefix syntax.")
+
+    network = await NodeManager.get_or_create_network(db, "pymesh")
+    network.ipv4_prefix = ipv4_prefix
+    if ipv6_prefix:
+        network.ipv6_prefix = ipv6_prefix
+
+    nodes = await NodeManager.list_nodes(db, network.id)
+    allocator = IPAllocator(ipv4_prefix, ipv6_prefix or "fd00:7079:6d65::/48")
+
+    allocated_v4 = set()
+    allocated_v6 = set()
+
+    for node in nodes:
+        v4, v6 = allocator.allocate(allocated_v4, allocated_v6)
+        node.mesh_ipv4 = v4
+        node.mesh_ipv6 = v6
+        allocated_v4.add(v4)
+        allocated_v6.add(v6)
+
+    await db.commit()
+    return {
+        "status": "updated",
+        "ipv4_prefix": ipv4_prefix,
+        "ipv6_prefix": ipv6_prefix,
+        "nodes_reallocated": len(nodes),
+    }

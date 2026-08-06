@@ -109,9 +109,17 @@ class DaemonLifecycle:
                 self.state.peers = config.peers
                 self.state.last_sync = datetime.now(timezone.utc).isoformat()
 
-                # Assign addresses
-                identity.mesh_ipv4 = config.mesh_ipv4
-                identity.mesh_ipv6 = config.mesh_ipv6
+                # Check for automatic subnet re-allocation from controller
+                if identity.mesh_ipv4 != config.mesh_ipv4 or identity.mesh_ipv6 != config.mesh_ipv6:
+                    logger.info(f"Subnet re-allocated by controller: New IPv4 = {config.mesh_ipv4}, New IPv6 = {config.mesh_ipv6}. Re-addressing local TUN interface pymesh0.")
+                    identity.mesh_ipv4 = config.mesh_ipv4
+                    identity.mesh_ipv6 = config.mesh_ipv6
+                    id_path = self.config_dir / "identity.json"
+                    try:
+                        identity.save(id_path)
+                    except Exception:
+                        pass
+
                 self.if_manager.assign_addresses(config.mesh_ipv4, config.mesh_ipv6)
 
                 # Sync WireGuard peers

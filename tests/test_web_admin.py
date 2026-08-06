@@ -14,7 +14,7 @@ async def test_web_admin_passkey_login():
         # GET /net/login
         login_res = await client.get("/net/login")
         assert login_res.status_code == 200
-        assert "Cisco Packet Tracer" in login_res.text
+        assert "Network Interface" in login_res.text
 
         # Invalid passkey POST
         invalid_res = await client.post("/net/login", data={"passkey": "INVALID_KEY"})
@@ -28,4 +28,4 @@ async def test_web_admin_passkey_login():
         # GET /net/dashboard with session cookie
         dash_res = await client.get("/net/dashboard", cookies=valid_res.cookies)
         assert dash_res.status_code == 200
-        assert "CISCO PACKET TRACER" in dash_res.text
+        assert "Network Interface" in dash_res.text

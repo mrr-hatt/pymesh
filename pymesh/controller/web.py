@@ -1,5 +1,6 @@
 """
-PyMesh Cisco Packet Tracer Style Web Admin Site & Passkey Authentication Engine.
+PyMesh Network Interface Web Console & Passkey Authentication Engine.
+1:1 Authentic Cisco Desktop Interface Aesthetics.
 """
 
 import secrets
@@ -8,16 +9,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
 
 from pymesh.storage.database import DatabaseManager
-from pymesh.storage.models import NodeModel, ACLRule, SubnetRoute
-from pymesh.controller.nodes import NodeManager
-from pymesh.controller.peers import PeerManager
 
 logger = logging.getLogger("pymesh.web")
 
-# Generate a unique dynamic admin passkey per server run
 ADMIN_PASSKEY = secrets.token_urlsafe(12)
 ACTIVE_SESSIONS = set()
 
@@ -28,9 +24,9 @@ db_manager = DatabaseManager()
 def print_startup_banner():
     banner = f"""
 ====================================================================
- [PyMesh Web Admin] Cisco Packet Tracer Dashboard Ready
- [PyMesh Web Admin] Dashboard URL: http://0.0.0.0:8000/net/login
- [PyMesh Web Admin] Passkey:       {ADMIN_PASSKEY}
+ [PyMesh Network Interface] Dashboard Console Ready
+ [PyMesh Network Interface] Dashboard URL: http://0.0.0.0:8000/net/login
+ [PyMesh Network Interface] Passkey:       {ADMIN_PASSKEY}
 ====================================================================
 """
     print(banner)
@@ -58,120 +54,109 @@ async def login_page(request: Request):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyMesh Admin Login | Cisco Packet Tracer Console</title>
+    <title>Network Interface | Login Console</title>
     <style>
-        * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
+        * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
         body {{
-            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            background: #004b7a;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #f8fafc;
+            color: #333;
         }}
         .login-card {{
-            background: rgba(30, 41, 59, 0.85);
-            backdrop-filter: blur(12px);
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 40px;
+            background: #ffffff;
+            border: 1px solid #b0bec5;
+            border-radius: 6px;
+            padding: 30px 40px;
             width: 100%;
-            max-width: 440px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            max-width: 420px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
         }}
         .brand {{
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #005B94;
+            padding-bottom: 15px;
         }}
         .brand h1 {{
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 700;
-            color: #38bdf8;
-            letter-spacing: 1px;
+            color: #005B94;
         }}
         .brand p {{
-            font-size: 13px;
-            color: #94a3b8;
-            margin-top: 6px;
+            font-size: 12px;
+            color: #555;
+            margin-top: 4px;
             text-transform: uppercase;
-            letter-spacing: 1.5px;
+            letter-spacing: 1px;
         }}
         .form-group {{
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }}
         label {{
             display: block;
-            font-size: 13px;
-            font-weight: 600;
-            color: #cbd5e1;
-            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #444;
+            margin-bottom: 6px;
         }}
         input[type="password"] {{
             width: 100%;
-            padding: 12px 16px;
-            background: #0f172a;
-            border: 1px solid #475569;
-            border-radius: 8px;
-            color: #38bdf8;
-            font-size: 16px;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            color: #005B94;
+            font-size: 15px;
             outline: none;
-            transition: all 0.2s ease;
             text-align: center;
             letter-spacing: 2px;
+            font-family: monospace;
         }}
         input[type="password"]:focus {{
-            border-color: #38bdf8;
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+            border-color: #005B94;
+            background: #fff;
         }}
         button {{
             width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            padding: 10px;
+            background: #005B94;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
             cursor: pointer;
-            transition: background 0.2s ease;
         }}
         button:hover {{
-            background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+            background: #004b7a;
         }}
         .hint {{
-            font-size: 12px;
-            color: #64748b;
+            font-size: 11px;
+            color: #666;
             text-align: center;
-            margin-top: 20px;
-            line-height: 1.5;
-        }}
-        .error {{
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid #ef4444;
-            color: #fca5a5;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 13px;
-            margin-bottom: 20px;
-            text-align: center;
+            margin-top: 18px;
+            line-height: 1.4;
         }}
     </style>
 </head>
 <body>
     <div class="login-card">
         <div class="brand">
-            <h1>PyMesh Admin</h1>
-            <p>Cisco Packet Tracer Control Console</p>
+            <h1>Network Interface</h1>
+            <p>Admin Authorization Console</p>
         </div>
         <form action="/net/login" method="POST">
             <div class="form-group">
-                <label for="passkey">SERVER STARTUP PASSKEY</label>
-                <input type="password" id="passkey" name="passkey" placeholder="Enter startup passkey" required autofocus>
+                <label for="passkey">CONTROLLER STARTUP PASSKEY</label>
+                <input type="password" id="passkey" name="passkey" placeholder="Enter passkey" required autofocus>
             </div>
             <button type="submit">Authenticate Session</button>
         </form>
         <div class="hint">
-            The passkey is generated dynamically on controller startup and printed in the terminal server console output.
+            The passkey is generated dynamically on controller startup and printed in the terminal console output.
         </div>
     </div>
 </body>
@@ -212,148 +197,343 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PyMesh Cisco Packet Tracer Studio</title>
+    <title>Network Interface</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Consolas', 'Segoe UI', monospace; }
-        body { background: #0b0f19; color: #e2e8f0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+        body { background: #e0e0e0; color: #000; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         
-        /* Top Navigation Header */
-        header {
-            background: #111827;
-            border-bottom: 1px solid #1f2937;
-            height: 50px;
+        /* Cisco Navy Top Header */
+        .cisco-header {
+            background: #005B94;
+            color: #ffffff;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 20px;
+            padding: 0 10px;
+            font-weight: bold;
         }
-        .header-title { font-size: 16px; font-weight: bold; color: #38bdf8; letter-spacing: 1px; }
-        .header-status { display: flex; gap: 20px; font-size: 13px; color: #9ca3af; }
-        .badge { background: #064e3b; color: #34d399; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
+        .header-title { font-size: 13px; letter-spacing: 0.5px; }
 
-        /* Main Workspace Layout */
-        .workspace { display: flex; flex: 1; height: calc(100vh - 50px); }
-        
-        /* Sidebar Toolbar */
-        .sidebar {
-            width: 240px;
-            background: #111827;
-            border-right: 1px solid #1f2937;
+        /* Menu Bar */
+        .menu-bar {
+            background: #f0f0f0;
+            border-bottom: 1px solid #c0c0c0;
             display: flex;
-            flex-direction: column;
-            padding: 15px;
+            padding: 2px 5px;
             gap: 15px;
         }
-        .section-title { font-size: 12px; font-weight: bold; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
-        .tool-btn {
-            background: #1f2937;
-            border: 1px solid #374151;
-            color: #cbd5e1;
-            padding: 10px;
-            border-radius: 6px;
-            text-align: left;
-            cursor: pointer;
-            font-size: 13px;
-            transition: all 0.2s;
-        }
-        .tool-btn:hover { background: #374151; color: #38bdf8; border-color: #38bdf8; }
+        .menu-item { cursor: pointer; padding: 2px 6px; color: #222; }
+        .menu-item:hover { background: #3399ff; color: #fff; }
 
-        /* Canvas Area */
-        .canvas-area {
+        /* Action Toolbar */
+        .action-toolbar {
+            background: #e8e8e8;
+            border-bottom: 1px solid #b0b0b0;
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            gap: 6px;
+        }
+        .tool-btn {
+            background: #f4f4f4;
+            border: 1px solid #adadad;
+            border-radius: 2px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 11px;
+            color: #333;
+        }
+        .tool-btn:hover { background: #e2e2e2; border-color: #777; }
+        .tool-separator { width: 1px; height: 18px; background: #b0b0b0; margin: 0 4px; }
+
+        /* Workspace Mode Bar */
+        .workspace-bar {
+            background: #d8d8d8;
+            border-bottom: 1px solid #b0b0b0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 2px 10px;
+        }
+        .mode-tabs { display: flex; gap: 2px; }
+        .mode-tab {
+            background: #c8c8c8;
+            border: 1px solid #999;
+            padding: 3px 12px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .mode-tab.active { background: #ffffff; border-bottom: 1px solid #ffffff; }
+
+        /* Main Workspace split */
+        .main-container { display: flex; flex: 1; height: calc(100vh - 200px); }
+
+        /* Left/Center Light Schematic Canvas */
+        .canvas-container {
             flex: 1;
             position: relative;
-            background-color: #080d1a;
-            background-image: radial-gradient(#1e293b 1px, transparent 1px);
-            background-size: 24px 24px;
-            overflow: hidden;
+            background: #ffffff;
+            background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+            background-size: 20px 20px;
+            overflow: auto;
         }
-        svg#network-canvas { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        svg#packet-canvas { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
 
-        /* Right Inspector Panel */
-        .inspector {
+        /* Right Inspector & Properties Drawer */
+        .inspector-drawer {
             width: 320px;
-            background: #111827;
-            border-left: 1px solid #1f2937;
-            padding: 20px;
+            background: #f4f4f4;
+            border-left: 1px solid #b0b0b0;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            padding: 10px;
+            gap: 10px;
             overflow-y: auto;
         }
-        .panel-box {
-            background: #1f2937;
-            border: 1px solid #374151;
-            border-radius: 8px;
-            padding: 15px;
+        .box-card {
+            background: #ffffff;
+            border: 1px solid #cccccc;
+            border-radius: 3px;
+            padding: 10px;
         }
-        .panel-box h3 { font-size: 14px; color: #38bdf8; margin-bottom: 10px; }
-        .info-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
-        .info-label { color: #9ca3af; }
-        .info-val { color: #f3f4f6; font-weight: bold; word-break: break-all; }
+        .box-title { font-weight: bold; color: #005B94; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; margin-bottom: 8px; }
+        
+        /* Bottom Area Split (Device Carousel & PDU Event List) */
+        .bottom-container {
+            height: 140px;
+            background: #e8e8e8;
+            border-top: 2px solid #b0b0b0;
+            display: flex;
+        }
 
-        /* Forms & Inputs */
-        input, select {
-            width: 100%;
-            padding: 8px 10px;
-            background: #0b0f19;
-            border: 1px solid #374151;
-            border-radius: 4px;
-            color: #38bdf8;
-            font-size: 12px;
-            margin-top: 4px;
-            margin-bottom: 10px;
+        .device-carousel {
+            width: 55%;
+            border-right: 1px solid #b0b0b0;
+            display: flex;
+            flex-direction: column;
         }
-        .action-btn {
-            width: 100%;
-            padding: 8px;
-            background: #0284c7;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
+        .carousel-cats {
+            background: #d0d0d0;
+            border-bottom: 1px solid #b0b0b0;
+            display: flex;
+            gap: 2px;
+            padding: 2px 4px;
+        }
+        .cat-btn {
+            background: #e0e0e0;
+            border: 1px solid #a0a0a0;
+            padding: 2px 8px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
         }
-        .action-btn:hover { background: #0369a1; }
+        .cat-btn.active { background: #ffffff; font-weight: bold; }
+        .carousel-items {
+            flex: 1;
+            padding: 8px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            overflow-x: auto;
+            background: #f8f8f8;
+        }
+        .device-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            padding: 4px 8px;
+            border: 1px solid transparent;
+        }
+        .device-item:hover { border: 1px solid #005B94; background: #e8f4fc; }
+
+        .pdu-simulator {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+        }
+        .pdu-header {
+            background: #d0d0d0;
+            border-bottom: 1px solid #b0b0b0;
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 8px;
+            font-weight: bold;
+        }
+        .pdu-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        .pdu-table th, .pdu-table td {
+            border: 1px solid #d0d0d0;
+            padding: 3px 6px;
+            text-align: left;
+        }
+        .pdu-table th { background: #e8e8e8; }
+
+        /* Modal Dialog */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.4);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-body {
+            background: #ffffff;
+            border: 2px solid #005B94;
+            width: 440px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .modal-header { font-size: 14px; font-weight: bold; color: #005B94; margin-bottom: 12px; }
+        input[type="text"] { width: 100%; padding: 6px; border: 1px solid #ccc; margin: 4px 0 12px 0; }
+        .btn-group { display: flex; justify-content: flex-end; gap: 8px; }
     </style>
 </head>
 <body>
-    <header>
-        <div class="header-title">CISCO PACKET TRACER | PyMesh Controller Studio</div>
-        <div class="header-status">
-            <div>Network: <span class="badge">ONLINE</span></div>
-            <div>Subnet: <span style="color:#38bdf8">100.64.0.0/10</span></div>
-            <div><a href="/net/login" style="color:#f43f5e; text-decoration:none;">Logout</a></div>
-        </div>
-    </header>
+    <!-- Top Cisco Navy Header -->
+    <div class="cisco-header">
+        <div class="header-title">Network Interface</div>
+        <div>Topology Mode: Realtime Sync</div>
+    </div>
 
-    <div class="workspace">
-        <div class="sidebar">
-            <div class="section-title">Packet Tracer Tools</div>
-            <button class="tool-btn" onclick="fetchTopology()">🔄 Refresh Topology</button>
-            <button class="tool-btn" onclick="showTab('portforward')">🔀 Port Forwarding Manager</button>
-            <button class="tool-btn" onclick="showTab('acl')">🛡️ ACL Policy Matrix</button>
-            <button class="tool-btn" onclick="showTab('routes')">🛣️ Subnet Routes</button>
-            
-            <div class="section-title" style="margin-top:20px;">Device Legend</div>
-            <div style="font-size:12px; color:#9ca3af; display:flex; flex-direction:column; gap:8px;">
-                <div>🟦 PC / Workstation</div>
-                <div>🟩 VPS / Linux Server</div>
-                <div>🟨 Subnet Gateway Router</div>
-                <div>🟪 UDP Encrypted Relay</div>
-            </div>
-        </div>
+    <!-- Menu Bar -->
+    <div class="menu-bar">
+        <div class="menu-item">File</div>
+        <div class="menu-item">Edit</div>
+        <div class="menu-item">Options</div>
+        <div class="menu-item">View</div>
+        <div class="menu-item">Tools</div>
+        <div class="menu-item">Extensions</div>
+        <div class="menu-item">Window</div>
+        <div class="menu-item">Help</div>
+    </div>
 
-        <div class="canvas-area">
-            <svg id="network-canvas">
-                <!-- Dynamic SVG elements rendered via JS -->
+    <!-- Action Toolbar -->
+    <div class="action-toolbar">
+        <button class="tool-btn" onclick="fetchNetworkData()">Refresh</button>
+        <button class="tool-btn" onclick="openSubnetModal()">Subnet Configuration</button>
+        <div class="tool-separator"></div>
+        <button class="tool-btn" onclick="setTool('select')">Select</button>
+        <button class="tool-btn" onclick="setTool('inspect')">Inspect</button>
+        <button class="tool-btn" onclick="setTool('delete')">Delete</button>
+        <div class="tool-separator"></div>
+        <button class="tool-btn" onclick="firePacketSimulation()">Fire Simulation PDU</button>
+    </div>
+
+    <!-- Workspace Bar -->
+    <div class="workspace-bar">
+        <div class="mode-tabs">
+            <div class="mode-tab active">Logical</div>
+            <div class="mode-tab">Physical</div>
+        </div>
+        <div>Location: <b>Root</b> | Simulation Clock: <span id="clock-display">02:45:00</span></div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="main-container">
+        <!-- Light Schematic Canvas -->
+        <div class="canvas-container">
+            <svg id="packet-canvas">
+                <!-- Schematic SVG items rendered via JS -->
             </svg>
         </div>
 
-        <div class="inspector" id="inspector-panel">
-            <div class="panel-box">
-                <h3>Node Inspector</h3>
-                <p style="font-size:12px; color:#9ca3af;">Click any node on the Packet Tracer canvas to inspect and reprogram parameters.</p>
+        <!-- Right Inspector Drawer -->
+        <div class="inspector-drawer" id="inspector">
+            <div class="box-card">
+                <div class="box-title">Network Overview</div>
+                <div style="margin-bottom:6px;">IPv4 Subnet: <b id="sub-v4">100.64.0.0/10</b></div>
+                <div>IPv6 Subnet: <b id="sub-v6">fd00:7079:6d65::/48</b></div>
+            </div>
+            <div class="box-card" id="node-details">
+                <div class="box-title">Device Inspector</div>
+                <p style="color:#666;">Click any device on the schematic canvas to inspect interface details and reprogram parameters.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Container (Carousel & PDU Event List) -->
+    <div class="bottom-container">
+        <div class="device-carousel">
+            <div class="carousel-cats">
+                <div class="cat-btn active">Routers</div>
+                <div class="cat-btn">Switches</div>
+                <div class="cat-btn">End Devices</div>
+                <div class="cat-btn">Connections</div>
+            </div>
+            <div class="carousel-items">
+                <div class="device-item">
+                    <div style="font-weight:bold; color:#005B94;">2911</div>
+                    <div>ISR Router</div>
+                </div>
+                <div class="device-item">
+                    <div style="font-weight:bold; color:#005B94;">2960</div>
+                    <div>Switch</div>
+                </div>
+                <div class="device-item">
+                    <div style="font-weight:bold; color:#005B94;">PC-PT</div>
+                    <div>Workstation</div>
+                </div>
+                <div class="device-item">
+                    <div style="font-weight:bold; color:#005B94;">Server-PT</div>
+                    <div>Linux Server</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="pdu-simulator">
+            <div class="pdu-header">
+                <div>Simulation Event List</div>
+                <div>Mode: Realtime</div>
+            </div>
+            <table class="pdu-table">
+                <thead>
+                    <tr>
+                        <th>Fire</th>
+                        <th>Status</th>
+                        <th>Source</th>
+                        <th>Destination</th>
+                        <th>Type</th>
+                        <th>Time(sec)</th>
+                    </tr>
+                </thead>
+                <tbody id="pdu-list">
+                    <tr>
+                        <td>Success</td>
+                        <td>Active</td>
+                        <td>client-pc</td>
+                        <td>vps-de</td>
+                        <td>ICMP/WG</td>
+                        <td>0.002</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Subnet Configuration Modal -->
+    <div class="modal-overlay" id="subnet-modal">
+        <div class="modal-body">
+            <div class="modal-header">Reallocate Network Subnet IP</div>
+            <p style="margin-bottom:10px; color:#555;">Changing the network CIDR will validate the prefix and automatically instruct all nodes to update their local TUN interface and WireGuard allowed IPs.</p>
+            
+            <label>New IPv4 Subnet CIDR Prefix</label>
+            <input type="text" id="input-v4" value="100.64.0.0/10">
+
+            <label>New IPv6 Subnet CIDR Prefix</label>
+            <input type="text" id="input-v6" value="fd00:7079:6d65::/48">
+
+            <div id="sub-error" style="color:red; font-weight:bold; margin-bottom:10px; display:none;"></div>
+
+            <div class="btn-group">
+                <button class="tool-btn" onclick="closeSubnetModal()">Cancel</button>
+                <button class="tool-btn" style="background:#005B94; color:#fff;" onclick="submitSubnetChange()">Apply Subnet Reallocation</button>
             </div>
         </div>
     </div>
@@ -361,7 +541,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     <script>
         let nodesData = [];
 
-        async function fetchTopology() {
+        async function fetchNetworkData() {
             try {
                 const res = await fetch('/api/v1/nodes');
                 if (res.ok) {
@@ -369,140 +549,134 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
                     renderCanvas();
                 }
             } catch (e) {
-                console.error("Failed fetching topology:", e);
+                console.error(e);
             }
         }
 
         function renderCanvas() {
-            const svg = document.getElementById('network-canvas');
+            const svg = document.getElementById('packet-canvas');
             svg.innerHTML = '';
 
-            if (nodesData.length === 0) {
-                svg.innerHTML = '<text x="50%" y="50%" fill="#475569" font-size="18" text-anchor="middle">No nodes connected yet. Run "pymesh join" on your hosts.</text>';
-                return;
-            }
+            const width = svg.clientWidth || 800;
+            const height = svg.clientHeight || 500;
+            const cx = width / 2;
+            const cy = height / 2;
+            const radius = 180;
 
-            const centerX = svg.clientWidth / 2 || 400;
-            const centerY = svg.clientHeight / 2 || 300;
-            const radius = Math.min(centerX, centerY) - 100;
-
-            // Render Central Controller Node
-            const controllerGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-            controllerGroup.innerHTML = `
-                <circle cx="${centerX}" cy="${centerY}" r="30" fill="#0284c7" stroke="#38bdf8" stroke-width="3" />
-                <text x="${centerX}" y="${centerY + 45}" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Controller (100.64.0.1)</text>
+            // Render Central Router
+            const centerG = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            centerG.innerHTML = `
+                <rect x="${cx - 30}" y="${cy - 20}" width="60" height="40" fill="#005B94" rx="4" />
+                <text x="${cx}" y="${cy + 5}" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">Controller</text>
+                <text x="${cx}" y="${cy + 35}" fill="#333" font-size="10" font-weight="bold" text-anchor="middle">100.64.0.1</text>
             `;
-            svg.appendChild(controllerGroup);
+            svg.appendChild(centerG);
 
-            // Render Nodes in Radial Topology
-            nodesData.forEach((node, idx) => {
-                const angle = (idx / nodesData.length) * 2 * Math.PI;
-                const x = centerX + radius * Math.cos(angle);
-                const y = centerY + radius * Math.sin(angle);
+            nodesData.forEach((node, i) => {
+                const angle = (i / nodesData.length) * 2 * Math.PI;
+                const nx = cx + radius * Math.cos(angle);
+                const ny = cy + radius * Math.sin(angle);
 
-                // Line connection to controller
+                // Connection line
                 const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-                line.setAttribute("x1", centerX);
-                line.setAttribute("y1", centerY);
-                line.setAttribute("x2", x);
-                line.setAttribute("y2", y);
-                line.setAttribute("stroke", "#334155");
+                line.setAttribute("x1", cx);
+                line.setAttribute("y1", cy);
+                line.setAttribute("x2", nx);
+                line.setAttribute("y2", ny);
+                line.setAttribute("stroke", "#555555");
                 line.setAttribute("stroke-width", "2");
-                line.setAttribute("stroke-dasharray", "4");
                 svg.appendChild(line);
 
-                // Node Circle Group
-                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                g.style.cursor = "pointer";
-                g.onclick = () => selectNode(node);
+                // Green Link Status Triangles (Cisco Style)
+                const tri1 = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                const m1x = cx + 40 * Math.cos(angle);
+                const m1y = cy + 40 * Math.sin(angle);
+                tri1.setAttribute("points", `${m1x},${m1y-5} ${m1x+6},${m1y+5} ${m1x-6},${m1y+5}`);
+                tri1.setAttribute("fill", "#00c853");
+                svg.appendChild(tri1);
 
-                const color = node.online ? "#10b981" : "#ef4444";
+                // Node Box
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.onclick = () => inspectNode(node);
+                g.style.cursor = "pointer";
+
+                const strokeColor = node.online ? "#00c853" : "#d50000";
                 g.innerHTML = `
-                    <circle cx="${x}" cy="${y}" r="22" fill="#1e293b" stroke="${color}" stroke-width="3" />
-                    <text x="${x}" y="${y + 4}" fill="#f8fafc" font-size="10" font-weight="bold" text-anchor="middle">${node.hostname.substring(0, 8)}</text>
-                    <text x="${x}" y="${y + 36}" fill="#94a3b8" font-size="11" text-anchor="middle">${node.mesh_ipv4}</text>
+                    <rect x="${nx - 35}" y="${ny - 20}" width="70" height="40" fill="#ffffff" stroke="${strokeColor}" stroke-width="2" rx="3" />
+                    <text x="${nx}" y="${ny + 2}" fill="#000000" font-size="10" font-weight="bold" text-anchor="middle">${node.hostname}</text>
+                    <text x="${nx}" y="${ny + 35}" fill="#444444" font-size="10" text-anchor="middle">${node.mesh_ipv4}</text>
                 `;
                 svg.appendChild(g);
             });
         }
 
-        function selectNode(node) {
-            const panel = document.getElementById('inspector-panel');
-            panel.innerHTML = `
-                <div class="panel-box">
-                    <h3>🖥️ Reprogram Node: ${node.hostname}</h3>
-                    <div class="info-row"><span class="info-label">Node ID:</span><span class="info-val">${node.id.substring(0, 12)}...</span></div>
-                    <div class="info-row"><span class="info-label">Mesh IPv4:</span><span class="info-val">${node.mesh_ipv4}</span></div>
-                    <div class="info-row"><span class="info-label">Mesh IPv6:</span><span class="info-val">${node.mesh_ipv6}</span></div>
-                    <div class="info-row"><span class="info-label">Status:</span><span class="info-val" style="color:${node.online ? '#34d399':'#f43f5e'}">${node.online ? 'ONLINE':'OFFLINE'}</span></div>
-
-                    <form onsubmit="reprogramNode(event, '${node.id}')">
-                        <label>Rename Hostname</label>
-                        <input type="text" id="edit-hostname" value="${node.hostname}" required>
-                        <button type="submit" class="action-btn">Save Reprogramming</button>
-                    </form>
-                </div>
+        function inspectNode(node) {
+            const container = document.getElementById('node-details');
+            container.innerHTML = `
+                <div class="box-title">Device: ${node.hostname}</div>
+                <div style="margin-bottom:4px;"><b>Node ID:</b> ${node.id.substring(0, 10)}...</div>
+                <div style="margin-bottom:4px;"><b>Mesh IPv4:</b> ${node.mesh_ipv4}</div>
+                <div style="margin-bottom:4px;"><b>Mesh IPv6:</b> ${node.mesh_ipv6}</div>
+                <div style="margin-bottom:4px;"><b>Status:</b> ${node.online ? 'ONLINE' : 'OFFLINE'}</div>
+                <div style="margin-bottom:4px;"><b>OS:</b> ${node.os}</div>
+                <div style="margin-bottom:4px;"><b>WG Key:</b> ${node.wireguard_public_key.substring(0, 10)}...</div>
             `;
         }
 
-        async function reprogramNode(e, nodeId) {
-            e.preventDefault();
-            const newHostname = document.getElementById('edit-hostname').value;
-            alert("Reprogrammed node " + nodeId.substring(0, 8) + " hostname to " + newHostname);
-            fetchTopology();
+        function openSubnetModal() {
+            document.getElementById('subnet-modal').style.display = 'flex';
+        }
+        function closeSubnetModal() {
+            document.getElementById('subnet-modal').style.display = 'none';
         }
 
-        function showTab(tab) {
-            const panel = document.getElementById('inspector-panel');
-            if (tab === 'portforward') {
-                panel.innerHTML = `
-                    <div class="panel-box">
-                        <h3>🔀 Add Port Forwarding Rule</h3>
-                        <form onsubmit="addPortForward(event)">
-                            <label>Target Node</label>
-                            <select id="pf-target">
-                                ${nodesData.map(n => `<option value="${n.hostname}">${n.hostname} (${n.mesh_ipv4})</option>`).join('')}
-                            </select>
-                            <label>Local Port</label>
-                            <input type="number" id="pf-local" value="8080" required>
-                            <label>Remote Port</label>
-                            <input type="number" id="pf-remote" value="8000" required>
-                            <button type="submit" class="action-btn">Create Port Forward Rule</button>
-                        </form>
-                    </div>
-                `;
-            } else if (tab === 'acl') {
-                panel.innerHTML = `
-                    <div class="panel-box">
-                        <h3>🛡️ Add ACL Policy Rule</h3>
-                        <form onsubmit="addACLRule(event)">
-                            <label>Source Selector</label>
-                            <input type="text" id="acl-src" placeholder="group:developers or *" value="*">
-                            <label>Destination Selector</label>
-                            <input type="text" id="acl-dst" placeholder="group:servers or node:vps-de" value="*">
-                            <label>Allowed Port</label>
-                            <input type="number" id="acl-port" placeholder="22, 80, 443" value="80">
-                            <button type="submit" class="action-btn">Apply Policy Rule</button>
-                        </form>
-                    </div>
-                `;
+        async function submitSubnetChange() {
+            const v4 = document.getElementById('input-v4').value;
+            const v6 = document.getElementById('input-v6').value;
+            const err = document.getElementById('sub-error');
+            err.style.display = 'none';
+
+            try {
+                const res = await fetch(`/api/v1/network/subnet?ipv4_prefix=${encodeURIComponent(v4)}&ipv6_prefix=${encodeURIComponent(v6)}`, {
+                    method: 'PUT'
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('sub-v4').innerText = v4;
+                    document.getElementById('sub-v6').innerText = v6;
+                    closeSubnetModal();
+                    alert(`Subnet updated! ${data.nodes_reallocated} nodes automatically re-allocated.`);
+                    fetchNetworkData();
+                } else {
+                    const errData = await res.json();
+                    err.innerText = errData.detail || "Invalid CIDR notation";
+                    err.style.display = 'block';
+                }
+            } catch (e) {
+                err.innerText = "Connection error";
+                err.style.display = 'block';
             }
         }
 
-        function addPortForward(e) {
-            e.preventDefault();
-            const target = document.getElementById('pf-target').value;
-            const localP = document.getElementById('pf-local').value;
-            const remoteP = document.getElementById('pf-remote').value;
-            alert(`Port Forward Created!\nRun command on client: pymesh forward ${target} ${localP}:${remoteP}`);
+        function setTool(tool) {
+            console.log("Active Tool:", tool);
         }
 
-        function addACLRule(e) {
-            e.preventDefault();
-            alert("ACL Policy Rule Created and Broadcasted to Mesh Peers!");
+        function firePacketSimulation() {
+            const list = document.getElementById('pdu-list');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>Success</td>
+                <td>Completed</td>
+                <td>client-pc</td>
+                <td>vps-de</td>
+                <td>ICMP</td>
+                <td>${(Math.random() * 0.01).toFixed(3)}</td>
+            `;
+            list.appendChild(row);
         }
 
-        window.onload = fetchTopology;
+        window.onload = fetchNetworkData;
         window.onresize = renderCanvas;
     </script>
 </body>
