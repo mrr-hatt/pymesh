@@ -265,13 +265,14 @@ def handle_key(config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
 
 def handle_forward(target: str, ports: str, config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
     import asyncio
+    import socket
 
     if ":" in ports:
         local_p_str, remote_p_str = ports.split(":", 1)
-        local_port = int(local_p_str)
+        req_local_port = int(local_p_str)
         remote_port = int(remote_p_str)
     else:
-        local_port = int(ports)
+        req_local_port = int(ports)
         remote_port = int(ports)
 
     target_ip = target
@@ -288,9 +289,6 @@ def handle_forward(target: str, ports: str, config_dir: Path = DEFAULT_CONFIG_DI
                             break
     except Exception:
         pass
-
-    console.print(f"[bold green]Forwarding local http://localhost:{local_port} -> {target} ({target_ip}):{remote_port}...[/bold green]")
-    console.print("[dim]Press Ctrl+C to stop port forwarding.[/dim]\n")
 
     async def forward_stream(local_reader, local_writer):
         try:
@@ -325,17 +323,45 @@ def handle_forward(target: str, ports: str, config_dir: Path = DEFAULT_CONFIG_DI
                 pass
 
     async def run_proxy():
-        server = await asyncio.start_server(forward_stream, "127.0.0.1", local_port)
-        async with server:
-            await server.serve_forever()
+        bound_server = None
+        bound_port = req_local_port
+
+        for port in range(req_local_port, req_local_port + 100):
+            sock = None
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                if hasattr(socket, "SO_REUSEPORT"):
+                    try:
+                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                    except Exception:
+                        pass
+                sock.bind(("127.0.0.1", port))
+                sock.listen(128)
+                sock.setblocking(False)
+                bound_port = port
+                bound_server = await asyncio.start_server(forward_stream, sock=sock)
+                break
+            except OSError:
+                if sock:
+                    sock.close()
+
+        if not bound_server:
+            console.print(f"[bold red]Port forwarding error:[/bold red] Could not bind to any port near {req_local_port}.")
+            return
+
+        if bound_port != req_local_port:
+            console.print(f"[bold yellow]Notice:[/bold yellow] Requested local port {req_local_port} was occupied.")
+            console.print(f"[bold green]Automatically proxied to http://localhost:{bound_port} -> {target} ({target_ip}):{remote_port}![/bold green]\n")
+        else:
+            console.print(f"[bold green]Forwarding local http://localhost:{bound_port} -> {target} ({target_ip}):{remote_port}...[/bold green]\n")
+
+        console.print("[dim]Press Ctrl+C to stop port forwarding.[/dim]\n")
+
+        async with bound_server:
+            await bound_server.serve_forever()
 
     try:
         asyncio.run(run_proxy())
     except (KeyboardInterrupt, asyncio.CancelledError):
         console.print("\n[yellow]Port forwarding stopped.[/yellow]")
-    except OSError as e:
-        if e.errno == 98 or "bind" in str(e).lower():
-            console.print(f"[bold red]Port forwarding error:[/bold red] Local port {local_port} is already in use on localhost.")
-            console.print(f"[yellow]Try specifying a free local port, e.g.:[/yellow] pymesh forward {target} {local_port + 80}:{remote_port}\n")
-        else:
-            console.print(f"[bold red]Port forwarding error:[/bold red] {e}")
