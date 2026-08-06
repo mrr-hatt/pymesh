@@ -6,6 +6,7 @@ import typer
 from typing import Optional
 from pathlib import Path
 
+from pymesh import __version__
 from pymesh.cli import commands
 
 app = typer.Typer(
@@ -16,6 +17,21 @@ app = typer.Typer(
 
 route_app = typer.Typer(help="Manage subnet routes and exit nodes")
 app.add_typer(route_app, name="route")
+
+
+def version_callback(value: bool):
+    if value:
+        typer.echo(f"PyMesh v{__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: Optional[bool] = typer.Option(
+        None, "--version", "-v", callback=version_callback, is_eager=True, help="Show PyMesh version and exit."
+    )
+):
+    pass
 
 
 @app.command("join")
