@@ -333,3 +333,9 @@ def handle_forward(target: str, ports: str, config_dir: Path = DEFAULT_CONFIG_DI
         asyncio.run(run_proxy())
     except (KeyboardInterrupt, asyncio.CancelledError):
         console.print("\n[yellow]Port forwarding stopped.[/yellow]")
+    except OSError as e:
+        if e.errno == 98 or "bind" in str(e).lower():
+            console.print(f"[bold red]Port forwarding error:[/bold red] Local port {local_port} is already in use on localhost.")
+            console.print(f"[yellow]Try specifying a free local port, e.g.:[/yellow] pymesh forward {target} {local_port + 80}:{remote_port}\n")
+        else:
+            console.print(f"[bold red]Port forwarding error:[/bold red] {e}")
