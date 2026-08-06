@@ -21,3 +21,9 @@ def test_cli_netcheck():
     assert "PyMesh Network Diagnostics" in result.stdout
     assert "NAT" in result.stdout
     assert "Direct P2P" in result.stdout
+
+
+def test_cli_forward_help():
+    result = runner.invoke(app, ["forward", "--help"])
+    assert result.exit_code == 0
+    assert "Forward a local port" in result.stdout

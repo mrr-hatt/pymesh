@@ -17,12 +17,16 @@ def print_status(node_info: Dict[str, Any], peers: List[Dict[str, Any]]) -> None
     table.add_column("Property", style="dim")
     table.add_column("Value")
 
+    wg_key = node_info.get("wg_public_key") or node_info.get("wireguard_public_key", "N/A")
     table.add_row("Node ID", node_info.get("node_id", "N/A"))
     table.add_row("Hostname", node_info.get("hostname", "N/A"))
     table.add_row("Mesh IPv4", node_info.get("mesh_ipv4", "N/A"))
     table.add_row("Mesh IPv6", node_info.get("mesh_ipv6", "N/A"))
-    table.add_row("WireGuard Public Key", node_info.get("wireguard_public_key", "N/A"))
-    table.add_row("Status", "[bold green]ONLINE[/bold green]" if node_info.get("online") else "[red]OFFLINE[/red]")
+    table.add_row("WireGuard Public Key", wg_key)
+    is_online = node_info.get("online")
+    if is_online is None:
+        is_online = bool(node_info.get("mesh_ipv4"))
+    table.add_row("Status", "[bold green]ONLINE[/bold green]" if is_online else "[red]OFFLINE[/red]")
     table.add_row("Active Peers", str(len(peers)))
 
     console.print(table)

@@ -261,3 +261,75 @@ def handle_key(config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
     console.print(f"[bold white]Node ID:[/bold white]               {identity.node_id}")
     console.print(f"[bold white]Ed25519 Public Key:[/bold white]    {identity.identity_public_key}")
     console.print(f"[bold white]WireGuard Public Key:[/bold white]  {identity.wg_public_key}")
+
+
+def handle_forward(target: str, ports: str, config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
+    import asyncio
+
+    if ":" in ports:
+        local_p_str, remote_p_str = ports.split(":", 1)
+        local_port = int(local_p_str)
+        remote_port = int(remote_p_str)
+    else:
+        local_port = int(ports)
+        remote_port = int(ports)
+
+    target_ip = target
+    try:
+        identity = get_identity_or_exit(config_dir)
+        if identity.controller_url:
+            url = f"{identity.controller_url.rstrip('/')}/api/v1/nodes"
+            with httpx.Client(timeout=5.0) as client:
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    for n in resp.json():
+                        if n["hostname"] == target:
+                            target_ip = n["mesh_ipv4"]
+                            break
+    except Exception:
+        pass
+
+    console.print(f"[bold green]Forwarding local http://localhost:{local_port} -> {target} ({target_ip}):{remote_port}...[/bold green]")
+    console.print("[dim]Press Ctrl+C to stop port forwarding.[/dim]\n")
+
+    async def forward_stream(local_reader, local_writer):
+        try:
+            remote_reader, remote_writer = await asyncio.open_connection(target_ip, remote_port)
+
+            async def pipe(reader, writer):
+                try:
+                    while True:
+                        data = await reader.read(8192)
+                        if not data:
+                            break
+                        writer.write(data)
+                        await writer.drain()
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        writer.close()
+                    except Exception:
+                        pass
+
+            await asyncio.gather(
+                pipe(local_reader, remote_writer),
+                pipe(remote_reader, local_writer),
+                return_exceptions=True,
+            )
+        except Exception as e:
+            console.print(f"[red]Connection error to {target_ip}:{remote_port}: {e}[/red]")
+            try:
+                local_writer.close()
+            except Exception:
+                pass
+
+    async def run_proxy():
+        server = await asyncio.start_server(forward_stream, "127.0.0.1", local_port)
+        async with server:
+            await server.serve_forever()
+
+    try:
+        asyncio.run(run_proxy())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        console.print("\n[yellow]Port forwarding stopped.[/yellow]")

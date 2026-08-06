@@ -94,6 +94,15 @@ def identity():
     commands.handle_key()
 
 
+@app.command("forward")
+def forward(
+    target: str = typer.Argument(..., help="Target node hostname or mesh IP (e.g. SV1)"),
+    ports: str = typer.Argument(..., help="Ports format local:remote or port (e.g. 8000 or 8080:8000)"),
+):
+    """Forward a local port (e.g. localhost:8000) over the mesh to a remote node."""
+    commands.handle_forward(target, ports)
+
+
 @route_app.command("add")
 def route_add(
     subnet: str = typer.Argument(..., help="Subnet CIDR (e.g. 10.10.0.0/24)"),
