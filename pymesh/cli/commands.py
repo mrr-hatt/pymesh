@@ -327,24 +327,12 @@ def handle_forward(target: str, ports: str, config_dir: Path = DEFAULT_CONFIG_DI
         bound_port = req_local_port
 
         for port in range(req_local_port, req_local_port + 100):
-            sock = None
             try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                if hasattr(socket, "SO_REUSEPORT"):
-                    try:
-                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-                    except Exception:
-                        pass
-                sock.bind(("127.0.0.1", port))
-                sock.listen(128)
-                sock.setblocking(False)
+                bound_server = await asyncio.start_server(forward_stream, "127.0.0.1", port)
                 bound_port = port
-                bound_server = await asyncio.start_server(forward_stream, sock=sock)
                 break
             except OSError:
-                if sock:
-                    sock.close()
+                continue
 
         if not bound_server:
             console.print(f"[bold red]Port forwarding error:[/bold red] Could not bind to any port near {req_local_port}.")
