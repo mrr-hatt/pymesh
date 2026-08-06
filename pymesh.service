@@ -1,0 +1,13 @@
+[Unit]
+Description=PyMesh Encrypted Private Mesh Daemon
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/pymesh up
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

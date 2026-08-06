@@ -35,10 +35,15 @@ class DaemonLifecycle:
         self._running = False
 
     def load_identity(self) -> Optional[NodeIdentity]:
-        path = self.config_dir / "identity.json"
-        if path.exists():
-            self.state.identity = NodeIdentity.load(path)
-            return self.state.identity
+        paths = [
+            self.config_dir / "identity.json",
+            Path.home() / ".config" / "pymesh" / "identity.json",
+            Path("/etc/pymesh/identity.json"),
+        ]
+        for path in paths:
+            if path.exists():
+                self.state.identity = NodeIdentity.load(path)
+                return self.state.identity
         return None
 
     async def start(self) -> None:

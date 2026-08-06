@@ -2,7 +2,7 @@
 
 PyMesh is a zero-trust, private encrypted mesh networking platform that connects PCs, VPS instances, servers, containers, and entire remote subnets across NATs and firewalls.
 
-PyMesh pairs WireGuard for kernel data-plane packet encryption with Python for control-plane coordination, dynamic NAT discovery, zero-decryption UDP relaying, Magic DNS, and access control (ACL) enforcement.
+PyMesh pairs WireGuard for kernel data-plane packet encryption with Python for control-plane coordination, dynamic NAT discovery, zero-decryption UDP relaying, Magic DNS, local port forwarding, and access control (ACL) enforcement.
 
 ---
 
@@ -18,14 +18,16 @@ PyMesh pairs WireGuard for kernel data-plane packet encryption with Python for c
    - [Step 4: Activate Mesh Interfaces](#step-4-activate-mesh-interfaces)
    - [Step 5: Run Network Diagnostics](#step-5-run-network-diagnostics)
 5. [Advanced Features](#advanced-features)
+   - [Local Port Forwarding & Proxy](#local-port-forwarding--proxy)
    - [Subnet Routers & Exit Nodes](#subnet-routers--exit-nodes)
    - [Magic DNS (*.mesh)](#magic-dns-mesh)
    - [Access Control Lists (ACLs)](#access-control-lists-acls)
    - [NAT Traversal & UDP Relaying](#nat-traversal--udp-relaying)
-6. [CLI Command Reference](#cli-command-reference)
-7. [Controller REST API Reference](#controller-rest-api-reference)
-8. [Testing & Verification](#testing--verification)
-9. [License](#license)
+6. [System Boot Reconnection & Persistence](#system-boot-reconnection--persistence)
+7. [CLI Command Reference](#cli-command-reference)
+8. [Controller REST API Reference](#controller-rest-api-reference)
+9. [Testing & Verification](#testing--verification)
+10. [License](#license)
 
 ---
 
@@ -72,6 +74,7 @@ PyMesh is structured into two distinct operational planes:
 - **NAT Traversal & UDP Hole Punching**: Integrated STUN client (RFC 5389) discovers public reflexive endpoints and initiates simultaneous UDP hole punching bursts for direct P2P reachability.
 - **Zero-Decryption UDP Relay**: Encrypted relay servers (`pymesh-relay`) forward framed WireGuard traffic when strict firewalls or Symmetric NATs prevent direct P2P connections.
 - **Magic DNS**: Local UDP DNS server resolves hostnames ending in `.mesh` (e.g. `vps-de.mesh`, `database.mesh`) directly to 100.64.0.x CGNAT addresses.
+- **Local Port Forwarding**: Expose remote services running on any node directly on `http://localhost:port` of your local host.
 - **Subnet Routing**: Allows designated nodes to act as gateways, exposing remote private subnets (e.g., `192.168.1.0/24` or `10.10.0.0/24`) across the mesh.
 
 ---
@@ -244,6 +247,20 @@ Output:
 
 ## Advanced Features
 
+### Local Port Forwarding & Proxy
+
+Access remote services hosted locally on any node as if they were running on your localhost:
+
+```bash
+# Forward local http://localhost:8000 -> port 8000 on node vps-de
+pymesh forward vps-de 8000
+
+# Forward local http://localhost:8080 -> port 3000 on node database
+pymesh forward database 8080:3000
+```
+
+Opening `http://localhost:8000` in your local browser transparently proxies traffic over the encrypted mesh tunnel.
+
 ### Subnet Routers & Exit Nodes
 
 Expose an internal private network (e.g. `10.10.0.0/24`) through a gateway node (`vps-de`):
@@ -298,6 +315,30 @@ Define security group policies on the controller to restrict inter-node communic
 
 ---
 
+## System Boot Reconnection & Persistence
+
+Node configurations (`identity.json`) are automatically stored locally upon joining a network. Upon system reboot or service restart, the PyMesh daemon automatically reconnects to the network using its stored credentials.
+
+To enable PyMesh to start automatically on system boot via systemd:
+
+```bash
+# Copy systemd unit configuration
+sudo cp pymesh.service /etc/systemd/system/pymesh.service
+
+# Reload systemd daemon
+sudo systemctl daemon-reload
+
+# Enable and start PyMesh daemon on boot
+sudo systemctl enable --now pymesh
+```
+
+To verify background service status:
+```bash
+sudo systemctl status pymesh
+```
+
+---
+
 ## CLI Command Reference
 
 | Command | Arguments / Options | Description |
@@ -308,6 +349,7 @@ Define security group policies on the controller to restrict inter-node communic
 | `pymesh status` | None | Displays local node identity, mesh IPs, and status |
 | `pymesh nodes` | None | Lists all registered network nodes |
 | `pymesh peers` | None | Lists active WireGuard peer connections |
+| `pymesh forward` | `<target> <ports>` | Forwards local port (e.g. `localhost:8000`) over mesh to target node |
 | `pymesh netcheck` | None | Runs STUN, NAT classification, and P2P diagnostic suite |
 | `pymesh topology` | None | Displays visual tree graph of network topology |
 | `pymesh ping` | `<node_or_ip>` | Pings target node across mesh network |
@@ -345,17 +387,17 @@ Expected output:
 
 ```text
 ============================= test session starts ==============================
-collected 12 items
+collected 13 items
 
-tests/test_acl.py ..                                                     [ 16%]
-tests/test_allocator.py .                                                [ 25%]
-tests/test_cli.py ..                                                     [ 41%]
-tests/test_controller.py ..                                              [ 58%]
-tests/test_identity.py ...                                               [ 83%]
-tests/test_relay.py .                                                    [ 91%]
+tests/test_acl.py ..                                                     [ 15%]
+tests/test_allocator.py .                                                [ 23%]
+tests/test_cli.py ...                                                    [ 46%]
+tests/test_controller.py ..                                              [ 61%]
+tests/test_identity.py ...                                               [ 84%]
+tests/test_relay.py .                                                    [ 92%]
 tests/test_wireguard_manager.py .                                        [100%]
 
-======================== 12 passed in 4.42s =========================
+======================== 13 passed in 4.97s =========================
 ```
 
 ---
