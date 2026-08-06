@@ -110,6 +110,16 @@ async def get_node(node_id: str, db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.delete("/nodes/{node_id}")
+async def delete_node(node_id: str, db: AsyncSession = Depends(get_db)):
+    stmt = delete(NodeModel).where(NodeModel.id == node_id)
+    result = await db.execute(stmt)
+    await db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Node not found")
+    return {"status": "deleted", "id": node_id}
+
+
 @router.get("/network/config", response_model=NetworkConfigResponse)
 async def get_network_config(
     node_id: str = Query(...),
