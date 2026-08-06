@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Encrypted private mesh network powered by WireGuard and Python"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "PyMesh Developers"}
 ]
@@ -35,6 +35,9 @@ dev = [
 
 [project.scripts]
 pymesh = "pymesh.cli.main:app"
+
+[tool.setuptools]
+packages = ["pymesh"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
