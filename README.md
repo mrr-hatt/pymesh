@@ -97,8 +97,11 @@ cd pymesh
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies and package in editable mode
-pip install -e .[dev]
+# Install dependencies via requirements.txt
+pip install -r requirements-dev.txt
+
+# Install package in editable mode
+pip install -e .
 ```
 
 ---
