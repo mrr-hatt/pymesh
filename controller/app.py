@@ -3,6 +3,7 @@ PyMesh Controller Entrypoint Server Application.
 """
 
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 
 from pymesh.controller.api import router as api_router, db_manager
@@ -32,6 +33,29 @@ async def root():
         "status": "running",
         "version": "0.2.0",
     }
+
+
+@app.get("/registry/{tld_name}", response_class=HTMLResponse)
+async def registry_tld_page(tld_name: str):
+    from fastapi.responses import HTMLResponse
+    from sqlalchemy import select
+    from pymesh.dns.tld import TLDManager
+    from pymesh.storage.models import TLDRegistry, NodeModel
+
+    clean = TLDManager.clean_tld(tld_name)
+    async for db in db_manager.get_session():
+        stmt = select(TLDRegistry).where(TLDRegistry.name == clean)
+        res = await db.execute(stmt)
+        tld_entry = res.scalar_one_or_none()
+
+        publisher_info = tld_entry.publisher_info if tld_entry else f"Official .{clean} TLD Registry"
+
+        n_stmt = select(NodeModel)
+        n_res = await db.execute(n_stmt)
+        nodes = n_res.scalars().all()
+        nodes_list = [{"hostname": n.hostname, "mesh_ipv4": n.mesh_ipv4, "mesh_ipv6": n.mesh_ipv6} for n in nodes]
+
+        return HTMLResponse(content=TLDManager.render_registry_html(clean, publisher_info, nodes_list))
 
 
 if __name__ == "__main__":

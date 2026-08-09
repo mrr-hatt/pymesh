@@ -93,3 +93,25 @@ class RelayNode(Base):
     public_key: Mapped[str] = mapped_column(String(64), nullable=False)
     region: Mapped[str] = mapped_column(String(64), default="default")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class TLDRegistry(Base):
+    __tablename__ = "tld_registries"
+
+    name: Mapped[str] = mapped_column(String(32), primary_key=True) # e.g. 'cr', 'mesh', 'priv'
+    description: Mapped[str] = mapped_column(String(256), default="Official TLD")
+    publisher_info: Mapped[str] = mapped_column(Text, default="{}")
+    publisher_node_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class FederatedController(Base):
+    __tablename__ = "federated_controllers"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    url: Mapped[str] = mapped_column(String(256), nullable=False, unique=True)
+    hostname: Mapped[str] = mapped_column(String(128), nullable=False)
+    public_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="PEERED")
+    last_synced: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))

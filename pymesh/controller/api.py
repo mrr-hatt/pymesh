@@ -280,3 +280,123 @@ async def update_network_subnet(
         "ipv6_prefix": ipv6_prefix,
         "nodes_reallocated": len(nodes),
     }
+
+
+# --- TLD Publishing Endpoints ---
+
+@router.post("/tld/publish")
+async def publish_tld(
+    name: str = Query(..., help="TLD name (e.g. cr, mesh, priv)"),
+    description: str = Query("Official TLD", help="TLD description"),
+    publisher_info: str = Query("Primary CR Server", help="Publisher details"),
+    db: AsyncSession = Depends(get_db),
+):
+    from pymesh.dns.tld import TLDManager
+    from pymesh.storage.models import TLDRegistry
+
+    if not TLDManager.validate_tld_name(name):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid TLD name syntax. Must be 2-24 standard lowercase characters/hyphens (e.g. .cr, .mesh).",
+        )
+
+    clean_name = TLDManager.clean_tld(name)
+    stmt = select(TLDRegistry).where(TLDRegistry.name == clean_name)
+    res = await db.execute(stmt)
+    existing = res.scalar_one_or_none()
+
+    if not existing:
+        tld_entry = TLDRegistry(
+            name=clean_name,
+            description=description,
+            publisher_info=publisher_info,
+            publisher_node_id="cr-primary",
+        )
+        db.add(tld_entry)
+    else:
+        existing.description = description
+        existing.publisher_info = publisher_info
+
+    await db.commit()
+    return {
+        "status": "published",
+        "tld": f".{clean_name}",
+        "registry_url": f"http://registry.{clean_name}",
+        "description": description,
+    }
+
+
+@router.get("/tld")
+async def list_tlds(db: AsyncSession = Depends(get_db)):
+    from pymesh.storage.models import TLDRegistry
+
+    stmt = select(TLDRegistry)
+    res = await db.execute(stmt)
+    tlds = res.scalars().all()
+    return [
+        {
+            "name": f".{t.name}",
+            "description": t.description,
+            "publisher_info": t.publisher_info,
+            "publisher_node_id": t.publisher_node_id,
+            "registry_url": f"http://registry.{t.name}",
+        }
+        for t in tlds
+    ]
+
+
+# --- CR Federation Endpoints ---
+
+@router.post("/cr/handshake")
+async def cr_handshake(payload: dict, db: AsyncSession = Depends(get_db)):
+    from pymesh.storage.models import FederatedController
+
+    target_url = payload.get("url", "").rstrip("/")
+    if not target_url:
+        raise HTTPException(status_code=400, detail="Missing CR server URL")
+
+    stmt = select(FederatedController).where(FederatedController.url == target_url)
+    res = await db.execute(stmt)
+    existing = res.scalar_one_or_none()
+
+    if not existing:
+        cr_peer = FederatedController(
+            id=payload.get("controller_id", "cr-remote"),
+            url=target_url,
+            hostname=payload.get("hostname", "Remote-CR"),
+            public_key=payload.get("public_key", "pubkey"),
+            status="PEERED",
+        )
+        db.add(cr_peer)
+    else:
+        existing.status = "PEERED"
+
+    await db.commit()
+    return {
+        "status": "peered",
+        "controller_id": "cr-local",
+        "hostname": "CR-Bootnode-Local",
+        "public_key": "local_pubkey",
+    }
+
+
+@router.post("/cr/peer")
+async def peer_cr_controller(url: str = Query(...), db: AsyncSession = Depends(get_db)):
+    from pymesh.controller.federation import FederationManager
+
+    local_info = {
+        "id": "cr-primary",
+        "hostname": "CR-Primary",
+        "url": "http://localhost:8000",
+        "public_key": "local_cr_pubkey",
+    }
+    result = await FederationManager.peer_controller(db, url, local_info)
+    return {"status": "peered", "target_url": url, "result": result}
+
+
+@router.get("/cr/peers")
+async def list_cr_peers(db: AsyncSession = Depends(get_db)):
+    from pymesh.controller.federation import FederationManager
+
+    peers = await FederationManager.list_peers(db)
+    return peers

@@ -4,7 +4,7 @@ Magic DNS resolver server for *.mesh domains.
 
 import asyncio
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 logger = logging.getLogger("pymesh.dns")
 
@@ -85,20 +85,65 @@ class MagicDNSServer:
         self.records: Dict[str, str] = {}
         self.transport = None
 
-    def update_records(self, new_records: Dict[str, str]):
+    def update_records(self, new_records: Dict[str, str], active_tlds: Optional[list] = None):
         self.records.clear()
+        tld_list = active_tlds or ["mesh", "cr"]
+
         for k, v in new_records.items():
-            self.records[k.lower()] = v
-            if not k.endswith(".mesh"):
-                self.records[f"{k.lower()}.mesh"] = v
+            k_clean = k.lower()
+            self.records[k_clean] = v
+
+            # Map across all active TLDs (e.g. node.cr, node.mesh)
+            for tld in tld_list:
+                tld_clean = tld.lstrip(".").lower()
+                self.records[f"{k_clean}.{tld_clean}"] = v
+                # Add registry.tld mapping to controller IP if controller present
+                if k_clean == "controller" or v.endswith(".1"):
+                    self.records[f"registry.{tld_clean}"] = v
 
     async def start(self):
         loop = asyncio.get_running_loop()
-        self.transport, _ = await loop.create_datagram_endpoint(
-            lambda: MagicDNSProtocol(self.records),
-            local_addr=(self.bind_host, self.bind_port),
-        )
-        logger.info(f"Magic DNS server listening on udp://{self.bind_host}:{self.bind_port}")
+        bound = False
+
+        # Attempt port 53 first (standard DNS), fallback to 5353
+        for port in [53, self.bind_port]:
+            try:
+                self.transport, _ = await loop.create_datagram_endpoint(
+                    lambda: MagicDNSProtocol(self.records),
+                    local_addr=(self.bind_host, port),
+                )
+                self.bind_port = port
+                logger.info(f"Magic DNS server listening on udp://{self.bind_host}:{port}")
+                bound = True
+                break
+            except Exception as e:
+                logger.debug(f"Could not bind UDP DNS to port {port}: {e}")
+
+        if not bound:
+            logger.warning("Could not bind Magic DNS server to port 53 or 5353.")
+
+        self._configure_system_resolver()
+
+    def _configure_system_resolver(self):
+        """Integrates local DNS resolver with systemd-resolved for system & browser queries."""
+        import subprocess
+        import shutil
+
+        if shutil.which("resolvectl"):
+            try:
+                subprocess.run(
+                    ["resolvectl", "dns", "pymesh0", f"{self.bind_host}:{self.bind_port}"],
+                    check=False,
+                    stderr=subprocess.DEVNULL,
+                )
+                subprocess.run(
+                    ["resolvectl", "domain", "pymesh0", "~mesh", "~cr"],
+                    check=False,
+                    stderr=subprocess.DEVNULL,
+                )
+                logger.info("Configured systemd-resolved DNS routes for PyMesh TLDs")
+            except Exception as e:
+                logger.debug(f"systemd-resolved config note: {e}")
 
     def stop(self):
         if self.transport:

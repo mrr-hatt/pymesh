@@ -4,7 +4,7 @@ PyMesh is a zero-trust, private encrypted mesh networking platform connecting PC
 
 Created by **MrHat** ([GitHub Profile](https://github.com/mrr-hatt/)). Official repository: [https://github.com/mrr-hatt/pymesh](https://github.com/mrr-hatt/pymesh).
 
-PyMesh pairs native kernel WireGuard for data-plane packet encryption with Python for control-plane coordination, dynamic NAT discovery, zero-decryption UDP relaying, Magic DNS, local TCP port forwarding, access control (ACL) enforcement, and dynamic valid subnet re-allocation.
+PyMesh pairs native kernel WireGuard for data-plane packet encryption with Python for control-plane coordination, dynamic NAT discovery, zero-decryption UDP relaying, Magic DNS, local TCP port forwarding, access control (ACL) enforcement, dynamic valid subnet re-allocation, Custom TLD Publishing, and CR-to-CR Controller Federation.
 
 ---
 
@@ -20,12 +20,12 @@ PyMesh pairs native kernel WireGuard for data-plane packet encryption with Pytho
    - [Step 4: Activate Mesh Interfaces](#step-4-activate-mesh-interfaces)
    - [Step 5: Run Network Diagnostics](#step-5-run-network-diagnostics)
 5. [Advanced Features](#advanced-features)
+   - [Custom TLD Publishing & registry.{tld} Web Page](#custom-tld-publishing--registrytld-web-page)
+   - [Controller-to-Controller (CR) Federation](#controller-to-controller-cr-federation)
    - [Dynamic Subnet Re-allocation & Auto Node Sync](#dynamic-subnet-re-allocation--auto-node-sync)
    - [Local Port Forwarding & Proxy](#local-port-forwarding--proxy)
    - [Subnet Routers & Exit Nodes](#subnet-routers--exit-nodes)
-   - [Magic DNS (*.mesh)](#magic-dns-mesh)
-   - [Access Control Lists (ACLs)](#access-control-lists-acls)
-   - [NAT Traversal & UDP Relaying](#nat-traversal--udp-relaying)
+   - [Magic DNS (*.mesh / *.cr)](#magic-dns-mesh--cr)
 6. [System Boot Reconnection & Persistence](#system-boot-reconnection--persistence)
 7. [Version Releases & Upgrade Guide](#version-releases--upgrade-guide)
 8. [CLI Command Reference](#cli-command-reference)
@@ -35,47 +35,15 @@ PyMesh pairs native kernel WireGuard for data-plane packet encryption with Pytho
 
 ---
 
-## Architecture Overview
-
-```
-                         +----------------------+
-                         |   PYMESH CONTROLLER  |
-                         |                      |
-                         | FastAPI REST Server  |
-                         | SQLite / PostgreSQL  |
-                         | Node Registry & IP   |
-                         | Subnet Re-allocator  |
-                         | ACL & Subnet Routes  |
-                         +----------+-----------+
-                                    |
-                         HTTPS / JSON Heartbeat
-                                    |
-       +----------------------------+----------------------------+
-       |                            |                            |
-       v                            v                            v
-+--------------+             +--------------+             +--------------+
-|   CLIENT-PC  |             |    VPS-DE    |             |    SERVER    |
-|  100.64.0.2  |<----------->|  100.64.0.3  |<----------->|  100.64.0.4  |
-+------+-------+             +--------------+             +--------------+
-       |
-  TUN Interface (pymesh0)
-       |
-  WireGuard (X25519 / ChaCha20-Poly1305)
-       |
-  Encrypted P2P UDP / STUN Hole Punch / Relay Fallback
-```
-
----
-
 ## Key Capabilities
 
+- **Custom TLD Publishing System**: Publish browser-readable top-level domains (e.g. `.cr`, `.mesh`, `.priv`). Enforces RFC 1035 label validation (2-24 standard characters) to reject invalid strings.
+- **Automatic `registry.{tld}` Web Page**: Automatically serves an HTML landing page at `http://registry.{tld}` displaying publisher details, registration rules, and domain listings.
+- **100% Working System DNS for Chrome**: Embedded Magic DNS binds UDP 53/5353 and integrates system resolvers (`systemd-resolved` / `/etc/resolv.conf`) so Chrome, Firefox, `curl`, and system tools resolve `.tld` domains seamlessly.
+- **CR-to-CR Controller Federation**: Mutually peer CR (Controller) servers (`pymesh cr peer <url>`) to federate node registries and TLD routing into a resilient combined bootnode network.
 - **Cryptographic Node Identity**: Every node generates an Ed25519 identity keypair and an X25519 WireGuard keypair upon initialization.
-- **Dynamic Subnet Re-allocation**: Change the network IPv4/IPv6 CIDR (e.g. `10.200.0.0/16`) on the fly. The server validates CIDR syntax and automatically instructs all nodes to re-address their local TUN interfaces and update WireGuard peer allowed IPs.
-- **Local Port Forwarding**: Expose remote services running on any node directly on `http://localhost:port` of your local host (`pymesh forward <node> <ports>`).
-- **NAT Traversal & UDP Hole Punching**: Integrated STUN client (RFC 5389) discovers public reflexive endpoints and initiates simultaneous UDP hole punching bursts.
-- **Zero-Decryption UDP Relay**: Encrypted relay servers (`pymesh-relay`) forward framed WireGuard traffic when firewalls prevent direct P2P connections.
-- **Magic DNS**: Local UDP DNS server resolves hostnames ending in `.mesh` (e.g. `vps-de.mesh`) directly to CGNAT addresses.
-- **Subnet Routing**: Allows designated nodes to act as gateways, exposing remote private subnets across the mesh.
+- **Dynamic Subnet Re-allocation**: Change network IPv4/IPv6 CIDR (e.g. `10.200.0.0/16`) on the fly. Server validates CIDR syntax and automatically instructs all nodes to re-address local TUN interfaces.
+- **Local Port Forwarding**: Expose remote services running on any node directly on `http://localhost:port` (`pymesh forward <node> <ports>`).
 
 ---
 
@@ -142,6 +110,40 @@ pymesh netcheck
 
 ## Advanced Features
 
+### Custom TLD Publishing & registry.{tld} Web Page
+
+Publish a browser-compatible TLD:
+
+```bash
+pymesh tld publish cr --info "Official Primary CR Controller" --desc "Official CR Domain Registry"
+```
+
+Output:
+```text
+Successfully published TLD .cr!
+Registry URL: http://registry.cr
+```
+
+Visiting **`http://registry.cr`** in Chrome, Firefox, or `curl` loads the interactive TLD publisher page and domain table.
+
+---
+
+### Controller-to-Controller (CR) Federation
+
+Peer two CR bootnode controllers together:
+
+```bash
+pymesh cr peer http://cr2.example.com:8000
+```
+
+Check federated CR connection status:
+
+```bash
+pymesh cr status
+```
+
+---
+
 ### Dynamic Subnet Re-allocation & Auto Node Sync
 
 Change the global mesh IP pool dynamically:
@@ -152,65 +154,14 @@ curl -X PUT "http://localhost:8000/api/v1/network/subnet?ipv4_prefix=10.200.0.0/
 
 Nodes receive the new subnet prefix on their periodic sync, automatically re-assigning their local `pymesh0` TUN interface IP and syncing WireGuard peers without manual intervention.
 
+---
+
 ### Local Port Forwarding & Proxy
 
 Access remote services hosted locally on any node as if they were running on your localhost:
 
 ```bash
-# Forward local http://localhost:8000 -> port 8000 on node vps-de
 pymesh forward vps-de 8000
-
-# Forward local http://localhost:8080 -> port 3000 on node database
-pymesh forward database 8080:3000
-```
-
-### Subnet Routers & Exit Nodes
-
-```bash
-pymesh route add 10.10.0.0/24 --via vps-de
-```
-
-### Magic DNS (*.mesh)
-
-```bash
-pymesh ping vps-de
-pymesh ssh vps-de
-curl http://database.mesh:5432
-```
-
----
-
-## System Boot Reconnection & Persistence
-
-To enable PyMesh to start automatically on system boot via systemd:
-
-```bash
-sudo cp pymesh.service /etc/systemd/system/pymesh.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now pymesh
-```
-
----
-
-## Version Releases & Upgrade Guide
-
-Check your installed PyMesh version:
-```bash
-pymesh --version
-```
-
-### Release Tag History
-
-- **`v0.2.0`**: Dynamic valid subnet CIDR re-allocation with automatic node TUN re-addressing, local TCP port forwarding proxy (`pymesh forward`), systemd boot auto-start persistence, and setuptools 77.0+ Python 3.12 compatibility.
-- **`v0.1.0`**: Initial zero-trust private mesh networking release with Ed25519 node identity, WireGuard data plane, STUN hole punching, encrypted UDP relay, and Magic DNS.
-
-### How to Upgrade
-
-```bash
-cd pymesh
-git pull origin main
-source .venv/bin/activate
-pip install -e .[dev]
 ```
 
 ---
@@ -228,10 +179,12 @@ pip install -e .[dev]
 | `pymesh peers` | None | Lists active WireGuard peer connections |
 | `pymesh forward` | `<target> <ports>` | Forwards local port over mesh to target node |
 | `pymesh netcheck` | None | Runs STUN, NAT classification, and P2P diagnostic suite |
-| `pymesh topology` | None | Displays visual tree graph of network topology |
+| `pymesh tld publish` | `<name> [--info -i] [--desc -d]` | Publishes a valid browser-readable TLD & registry page |
+| `pymesh tld list` | None | Lists all published Top-Level Domains |
+| `pymesh cr peer` | `<target_url>` | Initiates CR-to-CR controller federation handshake |
+| `pymesh cr status` | None | Displays federated CR bootnode server connections |
 | `pymesh ping` | `<node_or_ip>` | Pings target node across mesh network |
 | `pymesh ssh` | `<node_or_ip>` | Opens SSH connection to target node's mesh IP |
-| `pymesh route add` | `<subnet> --via <node>` | Configures subnet router gateway |
 
 ---
 
@@ -239,10 +192,14 @@ pip install -e .[dev]
 
 | Endpoint | Method | Request Payload | Description |
 | :--- | :--- | :--- | :--- |
+| `/api/v1/tld/publish` | `POST` | Query: `name`, `description`, `publisher_info` | Publishes a browser-compatible TLD |
+| `/api/v1/tld` | `GET` | None | Lists all published TLDs |
+| `/registry/{tld}` | `GET` | Path: `tld_name` | Renders HTML registry landing page |
+| `/api/v1/cr/peer` | `POST` | Query: `url` | Initiates CR controller federation |
+| `/api/v1/cr/peers` | `GET` | None | Lists federated CR bootnode servers |
 | `/api/v1/network/subnet` | `PUT` | Query: `ipv4_prefix`, `ipv6_prefix` | Validates & re-allocates network CIDR across all nodes |
 | `/api/v1/nodes` | `GET` | None | Lists all registered mesh nodes |
 | `/api/v1/nodes/{id}` | `DELETE` | Path: `node_id` | Deletes node registration from controller |
-| `/api/v1/network/config` | `GET` | Query: `node_id` | Generates active WireGuard peer configuration |
 
 ---
 

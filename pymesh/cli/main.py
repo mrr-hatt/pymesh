@@ -16,7 +16,12 @@ app = typer.Typer(
 )
 
 route_app = typer.Typer(help="Manage subnet routes and exit nodes")
+tld_app = typer.Typer(help="Manage Top-Level Domain (TLD) publishing and registries")
+cr_app = typer.Typer(help="Manage Controller-to-Controller (CR) federation and bootnodes")
+
 app.add_typer(route_app, name="route")
+app.add_typer(tld_app, name="tld")
+app.add_typer(cr_app, name="cr")
 
 
 def version_callback(value: bool):
@@ -126,6 +131,34 @@ def route_add(
 ):
     """Add a subnet route via a specified router node."""
     commands.handle_route_add(subnet, via)
+
+
+@tld_app.command("publish")
+def tld_publish(
+    name: str = typer.Argument(..., help="TLD name (e.g. cr, mesh, priv)"),
+    info: str = typer.Option("Primary CR Server", "--info", "-i", help="Publisher contact/info details"),
+    desc: str = typer.Option("Official TLD", "--desc", "-d", help="TLD description"),
+):
+    """Publish a browser-readable Top-Level Domain (TLD) and create registry page."""
+    commands.handle_tld_publish(name, desc, info)
+
+
+@tld_app.command("list")
+def tld_list():
+    """List all published Top-Level Domains (TLDs)."""
+    commands.handle_tld_list()
+
+
+@cr_app.command("peer")
+def cr_peer(target_url: str = typer.Argument(..., help="Remote CR server URL (e.g. http://cr2.example.com:8000)")):
+    """Initiate Controller-to-Controller (CR) federation handshake."""
+    commands.handle_cr_peer(target_url)
+
+
+@cr_app.command("status")
+def cr_status():
+    """Display federated CR bootnode server connections."""
+    commands.handle_cr_status()
 
 
 if __name__ == "__main__":

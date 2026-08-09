@@ -164,11 +164,7 @@ def handle_netcheck(config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
         pass
 
     if not peers:
-        peers = [
-            {"hostname": "germany-vps", "mesh_ipv4": "100.64.0.3", "mode": "DIRECT", "latency_ms": 14},
-            {"hostname": "database", "mesh_ipv4": "100.64.0.4", "mode": "DIRECT", "latency_ms": 8},
-            {"hostname": "friend-server", "mesh_ipv4": "100.64.0.5", "mode": "RELAY", "latency_ms": 42},
-        ]
+        peers = []
 
     print_netcheck(report, peers)
 
@@ -195,8 +191,8 @@ def handle_ping(target: str, config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
 
     try:
         subprocess.run(["ping", "-c", "4", ip_to_ping])
-    except Exception:
-        console.print(f"[yellow]Mock Ping to {target} ({ip_to_ping}): 64 bytes from {ip_to_ping}: icmp_seq=1 ttl=64 time=12.4 ms[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Ping error to {target} ({ip_to_ping}): {e}[/red]")
 
 
 def handle_ssh(target: str, config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
@@ -353,3 +349,92 @@ def handle_forward(target: str, ports: str, config_dir: Path = DEFAULT_CONFIG_DI
         asyncio.run(run_proxy())
     except (KeyboardInterrupt, asyncio.CancelledError):
         console.print("\n[yellow]Port forwarding stopped.[/yellow]")
+
+
+def handle_tld_publish(name: str, description: str = "Official TLD", info: str = "Primary CR Server", config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
+    identity = get_identity_or_exit(config_dir)
+    if not identity.controller_url:
+        console.print("[red]No controller URL configured.[/red]")
+        return
+
+    url = f"{identity.controller_url.rstrip('/')}/api/v1/tld/publish?name={name}&description={description}&publisher_info={info}"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                console.print(f"[bold green]Successfully published TLD {data['tld']}![/bold green]")
+                console.print(f"[white]Registry URL:[/white] {data['registry_url']}")
+            else:
+                console.print(f"[bold red]TLD Publish Error:[/bold red] {resp.json().get('detail', resp.text)}")
+    except Exception as e:
+        console.print(f"[red]Error publishing TLD:[/red] {e}")
+
+
+def handle_tld_list(config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
+    identity = get_identity_or_exit(config_dir)
+    if not identity.controller_url:
+        console.print("[red]No controller URL configured.[/red]")
+        return
+
+    url = f"{identity.controller_url.rstrip('/')}/api/v1/tld"
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            resp = client.get(url)
+            if resp.status_code == 200:
+                tlds = resp.json()
+                table = Table(title="Published PyMesh Top-Level Domains (TLDs)")
+                table.add_column("TLD", style="bold cyan")
+                table.add_column("Description", style="white")
+                table.add_column("Registry Page", style="green")
+                for t in tlds:
+                    table.add_row(t["name"], t["description"], t["registry_url"])
+                console.print(table)
+            else:
+                console.print(f"[red]Failed listing TLDs:[/red] {resp.text}")
+    except Exception as e:
+        console.print(f"[red]Error listing TLDs:[/red] {e}")
+
+
+def handle_cr_peer(target_url: str, config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
+    identity = get_identity_or_exit(config_dir)
+    if not identity.controller_url:
+        console.print("[red]No controller URL configured.[/red]")
+        return
+
+    url = f"{identity.controller_url.rstrip('/')}/api/v1/cr/peer?url={target_url}"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.post(url)
+            if resp.status_code == 200:
+                console.print(f"[bold green]Successfully peered CR server with {target_url}![/bold green]")
+            else:
+                console.print(f"[red]CR Peering Error:[/red] {resp.text}")
+    except Exception as e:
+        console.print(f"[red]Error peering CR server:[/red] {e}")
+
+
+def handle_cr_status(config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
+    identity = get_identity_or_exit(config_dir)
+    if not identity.controller_url:
+        console.print("[red]No controller URL configured.[/red]")
+        return
+
+    url = f"{identity.controller_url.rstrip('/')}/api/v1/cr/peers"
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            resp = client.get(url)
+            if resp.status_code == 200:
+                peers = resp.json()
+                table = Table(title="Federated CR Bootnode Servers")
+                table.add_column("Peer ID", style="bold yellow")
+                table.add_column("Hostname", style="white")
+                table.add_column("URL", style="cyan")
+                table.add_column("Status", style="green")
+                for p in peers:
+                    table.add_row(p["id"], p["hostname"], p["url"], p["status"])
+                console.print(table)
+            else:
+                console.print(f"[red]Failed fetching CR peers:[/red] {resp.text}")
+    except Exception as e:
+        console.print(f"[red]Error fetching CR peers:[/red] {e}")
