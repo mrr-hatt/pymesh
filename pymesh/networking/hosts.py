@@ -19,7 +19,7 @@ class HostsManager:
     """Manages PyMesh domain mappings inside /etc/hosts for instant system & browser DNS resolution."""
 
     @staticmethod
-    def sync_hosts_file(records: Dict[str, str], active_tlds: List[str] = None) -> bool:
+    def sync_hosts_file(records: Dict[str, str], active_tlds: List[str] = None, controller_url: str = None) -> bool:
         """
         Injects PyMesh node hostnames and registry.tld entries into /etc/hosts.
         """
@@ -43,12 +43,17 @@ class HostsManager:
             for tld in tld_cleans:
                 ip_map[ip].append(f"{h_clean}.{tld}")
 
-        # Add registry.tld mappings to controller IP (or default 100.64.0.1)
+        # Extract controller IP from controller_url if provided
         controller_ip = "100.64.0.1"
-        for ip, host_list in ip_map.items():
-            if ip.endswith(".1") or "controller" in host_list:
-                controller_ip = ip
-                break
+        if controller_url:
+            from urllib.parse import urlparse
+            try:
+                parsed = urlparse(controller_url)
+                ctrl_host = parsed.hostname or parsed.netloc.split(":")[0]
+                if ctrl_host:
+                    controller_ip = ctrl_host
+            except Exception:
+                pass
 
         if controller_ip not in ip_map:
             ip_map[controller_ip] = []

@@ -141,7 +141,7 @@ class DaemonLifecycle:
                 # Sync /etc/hosts for instant Chrome browser resolution
                 try:
                     from pymesh.networking.hosts import HostsManager
-                    HostsManager.sync_hosts_file(dns_records)
+                    HostsManager.sync_hosts_file(dns_records, controller_url=identity.controller_url)
                 except Exception as h_err:
                     logger.debug(f"Hosts sync note: {h_err}")
 

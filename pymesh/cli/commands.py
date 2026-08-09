@@ -363,8 +363,12 @@ def handle_tld_publish(name: str, description: str = "Official TLD", info: str =
             resp = client.post(url)
             if resp.status_code == 200:
                 data = resp.json()
-                console.print(f"[bold green]Successfully published TLD {data['tld']}![/bold green]")
-                console.print(f"[white]Registry URL:[/white] {data['registry_url']}")
+                clean_tld = name.lstrip('.')
+                ctrl_base = identity.controller_url.rstrip('/')
+                console.print(f"[bold green]Successfully published TLD .{clean_tld}![/bold green]")
+                console.print(f"[bold cyan]TLD Domain URL:[/bold cyan]   http://registry.{clean_tld}:8000")
+                console.print(f"[bold cyan]Direct Web URL:[/bold cyan]   {ctrl_base}/registry/{clean_tld}")
+                console.print("[yellow]Note: Open in Chrome using http:// (unencrypted HTTP, not https://)![/yellow]")
             else:
                 console.print(f"[bold red]TLD Publish Error:[/bold red] {resp.json().get('detail', resp.text)}")
     except Exception as e:
