@@ -442,3 +442,18 @@ def handle_cr_status(config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
                 console.print(f"[red]Failed fetching CR peers:[/red] {resp.text}")
     except Exception as e:
         console.print(f"[red]Error fetching CR peers:[/red] {e}")
+
+
+def handle_dns_server(host: str = "0.0.0.0", port: int = 53, controller_url: Optional[str] = None, config_dir: Path = DEFAULT_CONFIG_DIR) -> None:
+    from pymesh.dns.server import run_dns_server
+
+    c_url = controller_url
+    if not c_url:
+        try:
+            identity = get_identity_or_exit(config_dir)
+            c_url = identity.controller_url
+        except Exception:
+            c_url = "http://localhost:8000"
+
+    console.print(f"[bold green]Starting PyMesh Standalone DNS Server on {host}:{port}...[/bold green]")
+    run_dns_server(host, port, c_url)

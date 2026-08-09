@@ -18,10 +18,12 @@ app = typer.Typer(
 route_app = typer.Typer(help="Manage subnet routes and exit nodes")
 tld_app = typer.Typer(help="Manage Top-Level Domain (TLD) publishing and registries")
 cr_app = typer.Typer(help="Manage Controller-to-Controller (CR) federation and bootnodes")
+dns_app = typer.Typer(help="Standalone Authoritative & Upstream Recursive DNS Server")
 
 app.add_typer(route_app, name="route")
 app.add_typer(tld_app, name="tld")
 app.add_typer(cr_app, name="cr")
+app.add_typer(dns_app, name="dns")
 
 
 def version_callback(value: bool):
@@ -159,6 +161,16 @@ def cr_peer(target_url: str = typer.Argument(..., help="Remote CR server URL (e.
 def cr_status():
     """Display federated CR bootnode server connections."""
     commands.handle_cr_status()
+
+
+@dns_app.command("server")
+def dns_server(
+    host: str = typer.Option("0.0.0.0", "--host", "-h", help="Bind IP address"),
+    port: int = typer.Option(53, "--port", "-p", help="UDP port (default 53)"),
+    controller_url: Optional[str] = typer.Option(None, "--controller-url", "-c", help="PyMesh Controller URL"),
+):
+    """Start standalone Authoritative & Upstream Recursive DNS Server for PyMesh custom TLDs."""
+    commands.handle_dns_server(host, port, controller_url)
 
 
 if __name__ == "__main__":

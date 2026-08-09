@@ -74,3 +74,16 @@ async def test_cr_federation_api_routes():
         assert res_peers.status_code == 200
         peers = res_peers.json()
         assert any(p["url"] == "http://cr2.example.com:8000" for p in peers)
+
+
+def test_pymesh_dns_server():
+    from pymesh.dns.server import DNSQueryParser, PyMeshDNSServer
+
+    # Test Type A response construction
+    query_dummy = b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x08registry\x02cr\x00\x00\x01\x00\x01"
+    domain, _ = DNSQueryParser.parse_domain_name(query_dummy, 12)
+    assert domain == "registry.cr"
+
+    resp = DNSQueryParser.build_a_response(query_dummy, "registry.cr", "100.64.0.1")
+    assert len(resp) > 12
+    assert resp[:2] == b"\x12\x34"
