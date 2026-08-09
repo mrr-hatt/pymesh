@@ -24,7 +24,11 @@ async def lifespan(app: FastAPI):
     dns_srv = PyMeshDNSServer("0.0.0.0", 53, "http://localhost:8000")
     try:
         await dns_srv.start()
-        logger.info("PyMesh DNS Server auto-started on UDP port 53")
+        print(f"========================================================")
+        print(f" PyMesh Controller API running on http://0.0.0.0:8000")
+        print(f" PyMesh DNS Server active on UDP 0.0.0.0:{dns_srv.bind_port}")
+        print(f" Custom TLDs (*.cr, *.mesh, registry.cr) Ready")
+        print(f"========================================================")
     except Exception as e:
         logger.warning(f"Could not auto-start DNS server on port 53: {e}")
 
