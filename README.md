@@ -164,6 +164,21 @@ Access remote services hosted locally on any node as if they were running on you
 pymesh forward vps-de 8000
 ```
 
+### Standalone PyMesh Authoritative & Upstream Recursive DNS Server
+
+PyMesh includes a standalone UDP DNS Server (`pymesh dns server`) that resolves all custom TLD domains (`*.cr`, `*.mesh`, `registry.cr`, `registry.mesh`) and recursively forwards standard internet queries (`google.com`, `youtube.com`) to Cloudflare DNS (`1.1.1.1`).
+
+Start the DNS server on your CR Server:
+
+```bash
+sudo pymesh dns server --port 53 --controller-url http://37.114.46.108:8000
+```
+
+#### Chrome & OS Configuration:
+1. In Chrome, open **Settings** -> **Privacy and security** -> **Use Secure DNS**.
+2. Choose **Custom** and enter: `http://37.114.46.108:53` (or set system IPv4 DNS to `37.114.46.108`).
+3. Now `http://registry.cr:8000` and `http://<node>.cr:8000` resolve instantly in Chrome while standard websites continue working normally!
+
 ---
 
 ## CLI Command Reference
@@ -183,6 +198,7 @@ pymesh forward vps-de 8000
 | `pymesh tld list` | None | Lists all published Top-Level Domains |
 | `pymesh cr peer` | `<target_url>` | Initiates CR-to-CR controller federation handshake |
 | `pymesh cr status` | None | Displays federated CR bootnode server connections |
+| `pymesh dns server` | `[--host -h] [--port -p] [--controller-url -c]` | Starts Standalone Authoritative & Recursive DNS Server |
 | `pymesh ping` | `<node_or_ip>` | Pings target node across mesh network |
 | `pymesh ssh` | `<node_or_ip>` | Opens SSH connection to target node's mesh IP |
 
