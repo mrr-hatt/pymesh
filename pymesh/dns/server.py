@@ -197,15 +197,22 @@ def run_dns_server(host: str = "0.0.0.0", port: int = 53, controller_url: str = 
     """CLI entrypoint for running standalone PyMesh DNS Server."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     srv = PyMeshDNSServer(host, port, controller_url)
-    loop = asyncio.get_event_loop()
-    try:
-        loop.run_until_complete(srv.start())
+
+    async def main_async():
+        await srv.start()
         print(f"\n========================================================")
         print(f" PyMesh DNS Server Active on UDP {host}:{port}")
         print(f" Custom TLDs: .cr, .mesh, registry.cr, registry.mesh")
         print(f" Upstream DNS: 1.1.1.1 (Cloudflare)")
         print(f"========================================================\n")
-        loop.run_forever()
+        try:
+            await asyncio.Event().wait()
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            srv.stop()
+            print("\nPyMesh DNS Server stopped.")
+
+    try:
+        asyncio.run(main_async())
     except (KeyboardInterrupt, SystemExit):
         srv.stop()
         print("\nPyMesh DNS Server stopped.")

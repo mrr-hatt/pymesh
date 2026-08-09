@@ -9,11 +9,28 @@ from contextlib import asynccontextmanager
 from pymesh.controller.api import router as api_router, db_manager
 
 
+import logging
+
+logger = logging.getLogger("pymesh.controller")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize DB tables on startup
     await db_manager.init_db()
+
+    # Auto-start PyMesh DNS Server for custom TLDs (*.cr, *.mesh)
+    from pymesh.dns.server import PyMeshDNSServer
+    dns_srv = PyMeshDNSServer("0.0.0.0", 53, "http://localhost:8000")
+    try:
+        await dns_srv.start()
+        logger.info("PyMesh DNS Server auto-started on UDP port 53")
+    except Exception as e:
+        logger.warning(f"Could not auto-start DNS server on port 53: {e}")
+
     yield
+
+    dns_srv.stop()
 
 
 app = FastAPI(
