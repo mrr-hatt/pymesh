@@ -2,7 +2,7 @@
 PyMesh Controller Entrypoint Server Application.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 
@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not auto-start DNS server on port 53: {e}")
 
+    app.state.dns_srv = dns_srv
     yield
 
     dns_srv.stop()
@@ -77,6 +78,36 @@ async def registry_tld_page(tld_name: str):
         nodes_list = [{"hostname": n.hostname, "mesh_ipv4": n.mesh_ipv4, "mesh_ipv6": n.mesh_ipv6} for n in nodes]
 
         return HTMLResponse(content=TLDManager.render_registry_html(clean, publisher_info, nodes_list))
+
+
+@app.get("/dns-query")
+@app.post("/dns-query")
+async def doh_dns_query(request: Request):
+    from fastapi import Response
+    import base64
+
+    dns_srv = getattr(app.state, "dns_srv", None)
+    if not dns_srv:
+        from pymesh.dns.server import PyMeshDNSServer
+        dns_srv = PyMeshDNSServer("0.0.0.0", 53, "http://localhost:8000")
+
+    query_bytes = b""
+    if request.method == "POST":
+        query_bytes = await request.body()
+    elif request.method == "GET":
+        dns_param = request.query_params.get("dns")
+        if dns_param:
+            padded = dns_param + "=" * (-len(dns_param) % 4)
+            try:
+                query_bytes = base64.urlsafe_b64decode(padded)
+            except Exception:
+                pass
+
+    if not query_bytes:
+        return Response(status_code=400, content="Missing DNS query message")
+
+    response_bytes = await dns_srv.process_query_data(query_bytes)
+    return Response(content=response_bytes, media_type="application/dns-message")
 
 
 if __name__ == "__main__":

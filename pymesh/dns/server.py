@@ -152,6 +152,24 @@ class PyMeshDNSServer:
 
         return self.records_cache.get(d_clean)
 
+    async def process_query_data(self, data: bytes) -> bytes:
+        """Processes raw binary DNS query packet and returns DNS response packet."""
+        if len(data) < 12:
+            return b""
+
+        domain, _ = DNSQueryParser.parse_domain_name(data, 12)
+        if not domain:
+            return b""
+
+        target_ip = await self.resolve_custom_tld(domain)
+        if target_ip:
+            response = DNSQueryParser.build_a_response(data, domain, target_ip)
+            if response:
+                return response
+
+        upstream_resp = await self.forward_upstream(data)
+        return upstream_resp or b""
+
     async def forward_upstream(self, query_data: bytes) -> Optional[bytes]:
         """Forwards standard internet query (e.g. google.com) to upstream DNS (1.1.1.1:53)."""
         loop = asyncio.get_running_loop()
