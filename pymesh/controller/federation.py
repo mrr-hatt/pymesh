@@ -47,7 +47,7 @@ class FederationManager:
 
         if not existing:
             cr_peer = FederatedController(
-                id=peer_data.get("controller_id", f"cr-{uuid.uuid4().hex[:8]}"),
+                id=f"cr-{uuid.uuid4().hex[:12]}",
                 url=target_clean,
                 hostname=peer_data.get("hostname", "Remote-CR"),
                 public_key=peer_data.get("public_key", "pubkey"),

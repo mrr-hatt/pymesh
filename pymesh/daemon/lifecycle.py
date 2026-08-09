@@ -138,6 +138,13 @@ class DaemonLifecycle:
                 self.wg_manager.sync_peers(peer_dicts)
                 self.dns_server.update_records(dns_records)
 
+                # Sync /etc/hosts for instant Chrome browser resolution
+                try:
+                    from pymesh.networking.hosts import HostsManager
+                    HostsManager.sync_hosts_file(dns_records)
+                except Exception as h_err:
+                    logger.debug(f"Hosts sync note: {h_err}")
+
                 # Apply advertised routes
                 for r in config.routes:
                     if r.get("via_node_id") != identity.node_id:
@@ -147,5 +154,10 @@ class DaemonLifecycle:
         self._running = False
         self.state.is_running = False
         self.dns_server.stop()
+        try:
+            from pymesh.networking.hosts import HostsManager
+            HostsManager.remove_hosts_file()
+        except Exception:
+            pass
         self.if_manager.bring_down()
         logger.info("PyMesh daemon stopped.")

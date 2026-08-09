@@ -350,10 +350,11 @@ async def list_tlds(db: AsyncSession = Depends(get_db)):
 @router.post("/cr/handshake")
 async def cr_handshake(payload: dict, db: AsyncSession = Depends(get_db)):
     from pymesh.storage.models import FederatedController
+    import uuid
 
     target_url = payload.get("url", "").rstrip("/")
     if not target_url:
-        raise HTTPException(status_code=400, detail="Missing CR server URL")
+        target_url = payload.get("hostname", "remote-cr")
 
     stmt = select(FederatedController).where(FederatedController.url == target_url)
     res = await db.execute(stmt)
@@ -361,7 +362,7 @@ async def cr_handshake(payload: dict, db: AsyncSession = Depends(get_db)):
 
     if not existing:
         cr_peer = FederatedController(
-            id=payload.get("controller_id", "cr-remote"),
+            id=f"cr-{uuid.uuid4().hex[:12]}",
             url=target_url,
             hostname=payload.get("hostname", "Remote-CR"),
             public_key=payload.get("public_key", "pubkey"),
@@ -374,7 +375,7 @@ async def cr_handshake(payload: dict, db: AsyncSession = Depends(get_db)):
     await db.commit()
     return {
         "status": "peered",
-        "controller_id": "cr-local",
+        "controller_id": f"cr-{uuid.uuid4().hex[:12]}",
         "hostname": "CR-Bootnode-Local",
         "public_key": "local_pubkey",
     }
