@@ -179,13 +179,37 @@ class PyMeshDNSServer:
             return None
 
     async def start(self):
-        """Starts the PyMesh DNS Server on UDP port 53 (or configured port)."""
+        """Starts the PyMesh DNS Server on UDP port 53 (or configured fallback port)."""
         loop = asyncio.get_running_loop()
-        self.transport, _ = await loop.create_datagram_endpoint(
-            lambda: PyMeshDNSServerProtocol(self),
-            local_addr=(self.bind_host, self.bind_port),
-        )
-        logger.info(f"PyMesh DNS Server active on udp://{self.bind_host}:{self.bind_port}")
+        bound = False
+
+        ports_to_try = [self.bind_port] if self.bind_port != 53 else [53, 5353, 5300]
+        for port in ports_to_try:
+            sock = None
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                if hasattr(socket, "SO_REUSEPORT"):
+                    try:
+                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                    except Exception:
+                        pass
+                sock.bind((self.bind_host, port))
+                self.transport, _ = await loop.create_datagram_endpoint(
+                    lambda: PyMeshDNSServerProtocol(self),
+                    sock=sock,
+                )
+                self.bind_port = port
+                logger.info(f"PyMesh DNS Server active on udp://{self.bind_host}:{port}")
+                bound = True
+                break
+            except Exception as e:
+                if sock:
+                    sock.close()
+                logger.debug(f"Could not bind UDP DNS port {port}: {e}")
+
+        if not bound:
+            logger.warning(f"Could not bind PyMesh DNS Server on any port near {self.bind_port}.")
 
     def stop(self):
         if self.transport:
