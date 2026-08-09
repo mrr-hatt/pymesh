@@ -143,10 +143,16 @@ class PyMeshDNSServer:
                 if tld_res.status_code == 200:
                     tlds = tld_res.json()
                     from urllib.parse import urlparse
-                    ctrl_ip = urlparse(self.controller_url).hostname or "37.114.46.108"
+                    ctrl_host = urlparse(self.controller_url).hostname
+                    if not ctrl_host or ctrl_host in ("localhost", "127.0.0.1", "0.0.0.0"):
+                        ctrl_ip = "100.64.0.1"
+                    else:
+                        ctrl_ip = ctrl_host
+
                     for t in tlds:
                         clean_t = t["name"].lstrip(".").lower()
                         self.records_cache[f"registry.{clean_t}"] = ctrl_ip
+                        self.records_cache[f"registry"] = ctrl_ip
         except Exception as e:
             logger.debug(f"DNS controller fetch note: {e}")
 
