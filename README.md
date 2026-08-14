@@ -7,6 +7,9 @@ Created by **MrHat** ([GitHub Profile](https://github.com/mrr-hatt/)). Official 
 PyMesh pairs native kernel WireGuard for data-plane packet encryption with Python for control-plane coordination, dynamic NAT discovery, zero-decryption UDP relaying, Magic DNS, local TCP port forwarding, access control (ACL) enforcement, dynamic valid subnet re-allocation, Custom TLD Publishing, and CR-to-CR Controller Federation.
 
 ---
+<!-- REPOSPONSOR:START placement=-gfZxtSHO-rO1aPkJXEsyg -->
+[![Sponsored](http://reposponsor.com/ad/image/-gfZxtSHO-rO1aPkJXEsyg.png)](http://reposponsor.com/ad/click/-gfZxtSHO-rO1aPkJXEsyg)
+<!-- REPOSPONSOR:END placement=-gfZxtSHO-rO1aPkJXEsyg -->
 
 ## Table of Contents
 
